@@ -1,8 +1,15 @@
 import { delay, http, HttpResponse } from "msw";
-import { SubscriptionAccess } from "#/api/billing-service/billing.types";
+type MockSubscriptionAccess = {
+  start_at: string;
+  end_at: string;
+  created_at: string;
+  cancelled_at: string | null;
+  stripe_subscription_id: string | null;
+};
+
 
 // Mock data for different subscription scenarios
-const MOCK_ACTIVE_SUBSCRIPTION: SubscriptionAccess = {
+const MOCK_ACTIVE_SUBSCRIPTION = {
   start_at: "2024-01-01T00:00:00Z",
   end_at: "2024-12-31T23:59:59Z",
   created_at: "2024-01-01T00:00:00Z",
@@ -10,7 +17,7 @@ const MOCK_ACTIVE_SUBSCRIPTION: SubscriptionAccess = {
   stripe_subscription_id: "sub_mock123456789",
 };
 
-const MOCK_CANCELLED_SUBSCRIPTION: SubscriptionAccess = {
+const MOCK_CANCELLED_SUBSCRIPTION= {
   start_at: "2024-01-01T00:00:00Z",
   end_at: "2025-01-01T23:59:59Z",
   created_at: "2024-01-01T00:00:00Z",
@@ -19,7 +26,7 @@ const MOCK_CANCELLED_SUBSCRIPTION: SubscriptionAccess = {
 };
 
 // Expired subscription (end_at < now) - will be filtered out by backend logic
-const MOCK_EXPIRED_SUBSCRIPTION: SubscriptionAccess = {
+const MOCK_EXPIRED_SUBSCRIPTION = {
   start_at: "2024-01-01T00:00:00Z",
   end_at: "2024-06-01T00:00:00Z", // Expired
   created_at: "2024-01-01T00:00:00Z",
@@ -29,8 +36,9 @@ const MOCK_EXPIRED_SUBSCRIPTION: SubscriptionAccess = {
 
 // Helper function to check if subscription is currently active (matches backend logic)
 function isSubscriptionActive(
-  subscription: SubscriptionAccess | null,
+  subscription: MockSubscriptionAccess | null,
 ): boolean {
+
   if (!subscription) return false;
 
   const now = new Date();
@@ -42,7 +50,10 @@ function isSubscriptionActive(
 }
 
 // Factory function to create billing handlers with different subscription states
-function createBillingHandlers(subscriptionData: SubscriptionAccess | null) {
+function createBillingHandlers(
+  subscriptionData: MockSubscriptionAccess | null,
+) {
+
   return [
     http.get("/api/billing/credits", async () => {
       await delay();
