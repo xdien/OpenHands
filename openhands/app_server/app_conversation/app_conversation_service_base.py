@@ -69,9 +69,9 @@ class AppConversationServiceBase(AppConversationService, ABC):
         This method calls the agent-server's /api/skills endpoint to load and
         merge skills from all sources. The agent-server handles:
         - Public skills (from OpenHands/skills GitHub repo)
-        - User skills (from ~/.agents/skills/)
-        - Organization skills (from {org}/.agents repo)
-        - Project/repo skills (from repo .agents/skills/, and legacy .openhands/microagents/, and .openhands/skills/)
+        - User skills (from ~/.openhands/skills/)
+        - Organization skills (from {org}/.openhands repo)
+        - Project/repo skills (from repo .agents/skills/, .openhands/microagents/, and legacy .openhands/skills/)
         - Sandbox skills (from exposed URLs)
 
         Args:

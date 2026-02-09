@@ -469,8 +469,8 @@ async def get_conversation_skills(
     Skills are loaded from multiple sources:
     - Sandbox skills (exposed URLs)
     - Global skills (OpenHands/skills/)
-    - User skills (~/.agents/skills/)
-    - Organization skills (org/.agents repository)
+    - User skills (~/.openhands/skills/)
+    - Organization skills (org/.openhands repository)
     - Repository skills (repo .agents/skills/, .openhands/microagents/, and legacy .openhands/skills/)
 
     Returns:
