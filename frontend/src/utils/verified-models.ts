@@ -20,6 +20,7 @@ export const VERIFIED_MODELS = [
   "claude-opus-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-5-20251101",
+  "claude-opus-4-6",
   "gemini-2.5-pro",
   "o4-mini",
   "deepseek-chat",
@@ -61,6 +62,7 @@ export const VERIFIED_ANTHROPIC_MODELS = [
   "claude-opus-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-5-20251101",
+  "claude-opus-4-6",
 ];
 
 // LiteLLM does not return the compatible Mistral models with the provider, so we list them here to set them ourselves
@@ -82,6 +84,7 @@ export const VERIFIED_OPENHANDS_MODELS = [
   "claude-opus-4-20250514",
   "claude-opus-4-1-20250805",
   "claude-opus-4-5-20251101",
+  "claude-opus-4-6",
   "gemini-2.5-pro",
   "o3",
   "o4-mini",
