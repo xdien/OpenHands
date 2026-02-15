@@ -49,7 +49,7 @@ def _make_service_mock(
     async def _load_skills(*_args, **_kwargs):
         if raise_on_load:
             raise Exception('Skill loading failed')
-        return skills_return or []
+        return skills_return or [], None
 
     service.load_and_merge_all_skills = AsyncMock(side_effect=_load_skills)
     return service
