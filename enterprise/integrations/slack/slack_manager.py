@@ -136,6 +136,11 @@ class SlackManager(Manager):
                 f'Connection error getting channel info for default repo: {e}',
                 extra={'channel_id': channel_id},
             )
+        except Exception as e:
+            logger.warning(
+                f'Unexpected error getting channel info for default repo: {e}',
+                extra={'channel_id': channel_id},
+            )
         return None
 
     async def _get_repositories(self, user_auth: UserAuth) -> list[Repository]:
