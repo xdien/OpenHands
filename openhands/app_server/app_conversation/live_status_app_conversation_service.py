@@ -274,6 +274,12 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             body_json = start_conversation_request.model_dump(
                 mode='json', context={'expose_secrets': True}
             )
+            # Log hook_config to verify it's being passed
+            hook_config_in_request = body_json.get('hook_config')
+            _logger.info(
+                f'Sending StartConversationRequest with hook_config: '
+                f'{hook_config_in_request}'
+            )
             response = await self.httpx_client.post(
                 f'{agent_server_url}/api/conversations',
                 json=body_json,
