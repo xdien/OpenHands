@@ -18,6 +18,7 @@ from openhands.agent_server.models import (
     ConversationInfo,
     SendMessageRequest,
     StartConversationRequest,
+    TextContent,
 )
 from openhands.app_server.app_conversation.app_conversation_info_service import (
     AppConversationInfoService,
@@ -82,6 +83,7 @@ from openhands.app_server.utils.llm_metadata import (
 )
 from openhands.experiments.experiment_manager import ExperimentManagerImpl
 from openhands.integrations.provider import ProviderType
+from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
 from openhands.sdk.hooks import HookConfig
 from openhands.sdk.llm import LLM
@@ -90,6 +92,7 @@ from openhands.sdk.secret import LookupSecret, SecretValue, StaticSecret
 from openhands.sdk.utils.paging import page_iterator
 from openhands.sdk.workspace.remote.async_remote_workspace import AsyncRemoteWorkspace
 from openhands.server.types import AppMode
+from openhands.storage.data_models.conversation_metadata import ConversationTrigger
 from openhands.tools.preset.default import (
     get_default_tools,
 )
@@ -213,6 +216,8 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                     f'Parent conversation not found: {request.parent_conversation_id}'
                 )
             self._inherit_configuration_from_parent(request, parent_info)
+
+        self._apply_suggested_task(request)
 
         task = AppConversationStartTask(
             created_by_user_id=user_id,
@@ -579,6 +584,33 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         # Inherit LLM model from parent if not provided
         if not request.llm_model and parent_info.llm_model:
             request.llm_model = parent_info.llm_model
+
+    def _apply_suggested_task(self, request: AppConversationStartRequest) -> None:
+        """Apply suggested task defaults to the start request."""
+        suggested_task: SuggestedTask | None = request.suggested_task
+        if not suggested_task:
+            return
+
+        if request.initial_message is not None:
+            raise ValueError(
+                'initial_message cannot be provided when suggested_task is present'
+            )
+
+        prompt = suggested_task.get_prompt_for_task()
+        if not prompt:
+            raise ValueError(
+                f'Suggested task returned empty prompt for task type {suggested_task.task_type}'
+            )
+        request.initial_message = SendMessageRequest(
+            role='user',
+            content=[TextContent(text=prompt)],
+        )
+        request.trigger = ConversationTrigger.SUGGESTED_TASK
+
+        if not request.selected_repository:
+            request.selected_repository = suggested_task.repo
+        if not request.git_provider:
+            request.git_provider = suggested_task.git_provider
 
     def _compute_plan_path(
         self,
