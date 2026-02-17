@@ -40,31 +40,6 @@ def get_project_dir_for_hooks(
     return working_dir
 
 
-async def load_hooks_for_project(
-    agent_server_url: str,
-    session_api_key: str | None,
-    working_dir: str,
-    selected_repository: str | None,
-    httpx_client: httpx.AsyncClient,
-) -> HookConfig | None:
-    """Load hooks for a project in the workspace.
-
-    This is a convenience wrapper that:
-    1) Computes the `project_dir` based on `working_dir` and `selected_repository`
-    2) Calls the agent-server to load `.openhands/hooks.json` for that project
-
-    Returns:
-        HookConfig if hooks.json exists and is valid, None otherwise.
-    """
-    project_dir = get_project_dir_for_hooks(working_dir, selected_repository)
-    return await load_hooks_from_agent_server(
-        agent_server_url=agent_server_url,
-        session_api_key=session_api_key,
-        project_dir=project_dir,
-        httpx_client=httpx_client,
-    )
-
-
 async def load_hooks_from_agent_server(
     agent_server_url: str,
     session_api_key: str | None,

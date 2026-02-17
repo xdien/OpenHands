@@ -678,22 +678,26 @@ async def get_conversation_hooks(
             return ctx
 
         from openhands.app_server.app_conversation.hook_loader import (
-            load_hooks_for_project,
+            get_project_dir_for_hooks,
+            load_hooks_from_agent_server,
+        )
+
+        project_dir = get_project_dir_for_hooks(
+            ctx.sandbox_spec.working_dir,
+            ctx.conversation.selected_repository,
         )
 
         # Load hooks from agent-server
         logger.info(
             f'Loading hooks for conversation {conversation_id}, '
             f'agent_server_url={ctx.agent_server_url}, '
-            f'working_dir={ctx.sandbox_spec.working_dir}, '
-            f'selected_repository={ctx.conversation.selected_repository}'
+            f'project_dir={project_dir}'
         )
 
-        hook_config = await load_hooks_for_project(
+        hook_config = await load_hooks_from_agent_server(
             agent_server_url=ctx.agent_server_url,
             session_api_key=ctx.session_api_key,
-            working_dir=ctx.sandbox_spec.working_dir,
-            selected_repository=ctx.conversation.selected_repository,
+            project_dir=project_dir,
             httpx_client=httpx_client,
         )
 
