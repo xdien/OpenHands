@@ -289,6 +289,65 @@
     <button onclick="runTest6()">Launch Test</button>
   </div>
 
+  <h2>⚙️ Plugin Parameters (Form Fields)</h2>
+
+  <div class="test-case" id="test10">
+    <h3>Test 10: Single Plugin with Parameters</h3>
+    <p><strong>Plugin:</strong> aws-deploy (simulated)</p>
+    <p><strong>Parameters:</strong></p>
+    <ul>
+      <li><code>region</code> (string): "us-west-2"</li>
+      <li><code>timeout</code> (number): 30</li>
+      <li><code>debug</code> (boolean): false</li>
+    </ul>
+    <div class="expected">
+      <strong>Expected:</strong> Modal shows plugin with expandable section (expanded by default). Form fields appear for each parameter: text input for region, number input for timeout, checkbox for debug. Values are pre-filled with defaults.
+    </div>
+    <button onclick="runTest10()">Launch Test</button>
+  </div>
+
+  <div class="test-case" id="test11">
+    <h3>Test 11: Multiple Plugins with Parameters</h3>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><code>data-pipeline</code> with params: source_bucket (string), batch_size (number)</li>
+      <li><code>transformer</code> with params: format (string), compress (boolean)</li>
+    </ul>
+    <div class="expected">
+      <strong>Expected:</strong> Modal shows two expandable sections (both expanded by default), each with their own form fields. User can collapse/expand each section independently.
+    </div>
+    <button onclick="runTest11()">Launch Test</button>
+  </div>
+
+  <div class="test-case" id="test12">
+    <h3>Test 12: Mixed - Plugins With and Without Parameters</h3>
+    <p><strong>Plugins:</strong></p>
+    <ul>
+      <li><code>aws-deploy</code> WITH params: region, timeout, debug</li>
+      <li><code>logging-plugin</code> WITHOUT params</li>
+      <li><code>metrics-plugin</code> WITHOUT params</li>
+    </ul>
+    <div class="expected">
+      <strong>Expected:</strong> Modal shows aws-deploy as expandable section with form fields. Below it, "Additional Plugins" collapsible section lists logging-plugin and metrics-plugin without form fields.
+    </div>
+    <button onclick="runTest12()">Launch Test</button>
+  </div>
+
+  <div class="test-case" id="test13">
+    <h3>Test 13: Plugin with Empty String Parameters</h3>
+    <p><strong>Plugin:</strong> api-connector</p>
+    <p><strong>Parameters:</strong></p>
+    <ul>
+      <li><code>api_key</code> (string): "" (empty - user must fill in)</li>
+      <li><code>endpoint</code> (string): "https://api.example.com"</li>
+      <li><code>rate_limit</code> (number): 100</li>
+    </ul>
+    <div class="expected">
+      <strong>Expected:</strong> Modal shows form fields with api_key empty, endpoint pre-filled, rate_limit set to 100. User can edit all fields before starting.
+    </div>
+    <button onclick="runTest13()">Launch Test</button>
+  </div>
+
   <h2 class="error-heading">❌ Error Scenarios</h2>
 
   <div class="test-case error-case" id="test7">
@@ -417,6 +476,83 @@
       const plugins = [{ source: "github:jpshackelford/openhands-sample-plugins", repo_path: "plugins/city-weather" }];
       const maliciousMessage = '<scr' + 'ipt>alert("xss")<\/scr' + 'ipt>This text should appear safely';
       openLaunchUrl(`?plugins=${encodePlugins(plugins)}&message=${encodeURIComponent(maliciousMessage)}`);
+    }
+
+    // Test 10: Single plugin with parameters (shows form fields)
+    function runTest10() {
+      const plugins = [{
+        source: "github:example/aws-deploy",
+        repo_path: "plugins/aws-deploy",
+        parameters: {
+          region: "us-west-2",
+          timeout: 30,
+          debug: false
+        }
+      }];
+      openLaunchUrl(`?plugins=${encodePlugins(plugins)}`);
+    }
+
+    // Test 11: Multiple plugins with parameters
+    function runTest11() {
+      const plugins = [
+        {
+          source: "github:example/data-pipeline",
+          repo_path: "plugins/data-pipeline",
+          parameters: {
+            source_bucket: "my-data-bucket",
+            batch_size: 100
+          }
+        },
+        {
+          source: "github:example/transformer",
+          repo_path: "plugins/transformer",
+          parameters: {
+            format: "json",
+            compress: true
+          }
+        }
+      ];
+      openLaunchUrl(`?plugins=${encodePlugins(plugins)}`);
+    }
+
+    // Test 12: Mixed - plugins with and without parameters
+    function runTest12() {
+      const plugins = [
+        {
+          source: "github:example/aws-deploy",
+          repo_path: "plugins/aws-deploy",
+          parameters: {
+            region: "us-east-1",
+            timeout: 60,
+            debug: true
+          }
+        },
+        {
+          source: "github:example/logging-plugin",
+          repo_path: "plugins/logging"
+          // No parameters
+        },
+        {
+          source: "github:example/metrics-plugin",
+          repo_path: "plugins/metrics"
+          // No parameters
+        }
+      ];
+      openLaunchUrl(`?plugins=${encodePlugins(plugins)}`);
+    }
+
+    // Test 13: Plugin with empty string parameters (user must fill in)
+    function runTest13() {
+      const plugins = [{
+        source: "github:example/api-connector",
+        repo_path: "plugins/api-connector",
+        parameters: {
+          api_key: "",
+          endpoint: "https://api.example.com",
+          rate_limit: 100
+        }
+      }];
+      openLaunchUrl(`?plugins=${encodePlugins(plugins)}`);
     }
   </script>
 </body>
