@@ -337,13 +337,7 @@ class AppConversationServiceBase(AppConversationService, ABC):
         selected_repository: str | None = None,
     ):
         """Run .openhands/setup.sh if it exists in the workspace or repository."""
-        # Compute repo root: when a repo is selected, it's cloned into a subdirectory
-        repo_root: Path
-        if selected_repository:
-            dir_name = selected_repository.split('/')[-1]
-            repo_root = Path(workspace.working_dir) / dir_name
-        else:
-            repo_root = Path(workspace.working_dir)
+        repo_root = self._compute_repo_root(workspace, selected_repository)
 
         setup_script = repo_root / '.openhands' / 'setup.sh'
 
@@ -364,13 +358,7 @@ class AppConversationServiceBase(AppConversationService, ABC):
         selected_repository: str | None = None,
     ):
         """Set up git hooks if .openhands/pre-commit.sh exists in the workspace or repository."""
-        # Compute repo root: when a repo is selected, it's cloned into a subdirectory
-        repo_root: Path
-        if selected_repository:
-            dir_name = selected_repository.split('/')[-1]
-            repo_root = Path(workspace.working_dir) / dir_name
-        else:
-            repo_root = Path(workspace.working_dir)
+        repo_root = self._compute_repo_root(workspace, selected_repository)
 
         pre_commit_hook = str(repo_root / PRE_COMMIT_HOOK)
 
@@ -418,6 +406,26 @@ class AppConversationServiceBase(AppConversationService, ABC):
             return
 
         _logger.info('Git pre-commit hook installed successfully')
+
+    def _compute_repo_root(
+        self,
+        workspace: AsyncRemoteWorkspace,
+        selected_repository: str | None = None,
+    ) -> Path:
+        """Compute repository root path under the workspace.
+
+        selected_repository is typically in owner/repo format. If absent or malformed,
+        fall back to workspace root.
+        """
+        workspace_root = Path(workspace.working_dir)
+        if not selected_repository:
+            return workspace_root
+
+        dir_name = selected_repository.rstrip('/').split('/')[-1]
+        if not dir_name:
+            return workspace_root
+
+        return workspace_root / dir_name
 
     def _create_condenser(
         self,
