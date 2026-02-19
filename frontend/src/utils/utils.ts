@@ -783,7 +783,7 @@ interface GetStatusTextArgs {
  *   isStartingStatus: false,
  *   isStopStatus: false,
  *   curAgentState: AgentState.RUNNING
- * }) // Returns "Waiting For Sandbox"
+ * }) // Returns "Waiting for sandbox"
  */
 export function getStatusText({
   isPausing = false,
