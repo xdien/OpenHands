@@ -6259,15 +6259,13 @@ wsproto = ">=1.2.0"
 
 [[package]]
 name = "openhands-sdk"
-version = "1.11.4"
+version = "1.12.0"
 description = "OpenHands SDK - Core functionality for building AI agents"
 optional = false
 python-versions = ">=3.12"
 groups = ["main"]
-files = [
-    {file = "openhands_sdk-1.11.4-py3-none-any.whl", hash = "sha256:9f4607c5d94b56fbcd533207026ee892779dd50e29bce79277ff82454a4f76d5"},
-    {file = "openhands_sdk-1.11.4.tar.gz", hash = "sha256:4088744f6b8856eeab22d3bc17e47d1736ea7ced945c2fa126bd7d48c14bb313"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 deprecation = ">=2.1.0"
@@ -6284,6 +6282,13 @@ websockets = ">=12"
 
 [package.extras]
 boto3 = ["boto3 (>=1.35.0)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/OpenHands/software-agent-sdk"
+reference = "2444bd1e66191598f07e7f91adcd6f1c69b78dac"
+resolved_reference = "2444bd1e66191598f07e7f91adcd6f1c69b78dac"
+subdirectory = "openhands-sdk"
 
 [[package]]
 name = "openhands-tools"
@@ -14724,4 +14729,4 @@ third-party-runtimes = ["daytona", "e2b-code-interpreter", "modal", "runloop-api
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12,<3.14"
-content-hash = "3b2bd89255226788685b3e37309c5fc9cbd0f8e4f784c48f1a36ed78f7ba0a70"
+content-hash = "89087a294305ececd0f761b3c76c7d98f331ef652776799ac921f6abe9f8caec"
