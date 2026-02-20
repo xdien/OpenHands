@@ -1,12 +1,5 @@
 import { Trans, useTranslation } from "react-i18next";
-import {
-  BaseModalDescription,
-  BaseModalTitle,
-} from "#/components/shared/modals/confirmation-modals/base-modal";
-import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
-import { ModalBody } from "#/components/shared/modals/modal-body";
-import { BrandButton } from "#/components/features/settings/brand-button";
-import { LoadingSpinner } from "#/components/shared/loading-spinner";
+import { OrgModal } from "#/components/shared/modals/org-modal";
 import { I18nKey } from "#/i18n/declaration";
 import { useDeleteOrganization } from "#/hooks/mutation/use-delete-organization";
 import { useOrganization } from "#/hooks/query/use-organization";
@@ -43,44 +36,17 @@ export function DeleteOrgConfirmationModal({
   );
 
   return (
-    <ModalBackdrop
-      onClose={isPending ? undefined : onClose}
-      aria-label={t(I18nKey.ORG$DELETE_ORGANIZATION)}
-    >
-      <ModalBody
-        className="items-start border border-tertiary"
-        testID="delete-org-confirmation"
-      >
-        <div className="flex flex-col gap-2">
-          <BaseModalTitle title={t(I18nKey.ORG$DELETE_ORGANIZATION)} />
-          <BaseModalDescription>{confirmationMessage}</BaseModalDescription>
-        </div>
-        <div className="flex flex-col gap-2 w-full">
-          <BrandButton
-            type="button"
-            variant="primary"
-            onClick={handleConfirm}
-            className="w-full flex items-center justify-center"
-            isDisabled={isPending}
-          >
-            {isPending ? (
-              <LoadingSpinner size="small" />
-            ) : (
-              t(I18nKey.ACTION$CONFIRM_DELETE)
-            )}
-          </BrandButton>
-          <BrandButton
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-            className="w-full"
-            isDisabled={isPending}
-            data-testid="cancel-button"
-          >
-            {t(I18nKey.BUTTON$CANCEL)}
-          </BrandButton>
-        </div>
-      </ModalBody>
-    </ModalBackdrop>
+    <OrgModal
+      testId="delete-org-confirmation"
+      title={t(I18nKey.ORG$DELETE_ORGANIZATION)}
+      description={confirmationMessage}
+      primaryButtonText={t(I18nKey.BUTTON$CONFIRM)}
+      onPrimaryClick={handleConfirm}
+      onClose={onClose}
+      isLoading={isPending}
+      secondaryButtonTestId="cancel-button"
+      ariaLabel={t(I18nKey.ORG$DELETE_ORGANIZATION)}
+      fullWidthButtons
+    />
   );
 }
