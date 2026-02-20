@@ -352,9 +352,16 @@ class Runtime(FileEditRuntimeMixin):
             cmd = cmd.strip()
             logger.debug('Adding env vars to PowerShell')  # don't log the values
 
-            self._run_cmd_with_retry(
-                cmd, f'Failed to add env vars [{env_vars.keys()}] to environment'
-            )
+            try:
+                self._run_cmd_with_retry(
+                    cmd, f'Failed to add env vars [{env_vars.keys()}] to environment'
+                )
+            except RuntimeError as e:
+                # Re-raise with redacted error message to avoid leaking secret values
+                raise RuntimeError(
+                    f'Failed to add env vars [{list(env_vars.keys())}] to environment. '
+                    'Check that all variable names are valid identifiers.'
+                ) from None
 
             # We don't add to profile persistence on Windows as it's more complex
             # and varies between PowerShell versions
@@ -376,16 +383,33 @@ class Runtime(FileEditRuntimeMixin):
             cmd = cmd.strip()
             logger.debug('Adding env vars to bash')  # don't log the values
 
-            self._run_cmd_with_retry(
-                cmd, f'Failed to add env vars [{env_vars.keys()}] to environment'
-            )
+            try:
+                self._run_cmd_with_retry(
+                    cmd, f'Failed to add env vars [{env_vars.keys()}] to environment'
+                )
+            except RuntimeError as e:
+                # Re-raise with redacted error message to avoid leaking secret values
+                # The original error may contain the full export command with secrets
+                raise RuntimeError(
+                    f'Failed to add env vars [{list(env_vars.keys())}] to environment. '
+                    'Check that all variable names are valid bash identifiers '
+                    '(alphanumeric and underscores only, cannot start with a digit).'
+                ) from None
 
             # Add to .bashrc for persistence
             bashrc_cmd = bashrc_cmd.strip()
             logger.debug(f'Adding env var to .bashrc: {env_vars.keys()}')
-            self._run_cmd_with_retry(
-                bashrc_cmd, f'Failed to add env vars [{env_vars.keys()}] to .bashrc'
-            )
+            try:
+                self._run_cmd_with_retry(
+                    bashrc_cmd, f'Failed to add env vars [{env_vars.keys()}] to .bashrc'
+                )
+            except RuntimeError as e:
+                # Re-raise with redacted error message to avoid leaking secret values
+                raise RuntimeError(
+                    f'Failed to add env vars [{list(env_vars.keys())}] to .bashrc. '
+                    'Check that all variable names are valid bash identifiers '
+                    '(alphanumeric and underscores only, cannot start with a digit).'
+                ) from None
 
     def on_event(self, event: Event) -> None:
         if isinstance(event, Action):
