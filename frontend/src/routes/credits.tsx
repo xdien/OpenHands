@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useConfig } from "#/hooks/query/use-config";
 import { I18nKey } from "#/i18n/declaration";
@@ -32,28 +32,24 @@ function CreditsScreen() {
   const { data: config } = useConfig();
   const isSaas = config?.app_mode === "saas";
 
-  const releaseInfo = useMemo(
-    () =>
-      [
-        ...(isSaas
-          ? [
-              {
-                label: t(I18nKey.CREDITS$OPENHANDS_ENTERPRISE_EDITION),
-                version: __OPENHANDS_ENTERPRISE_VERSION__,
-              },
-            ]
-          : []),
-        {
-          label: t(I18nKey.CREDITS$OPENHANDS_WEB),
-          version: __OPENHANDS_WEB_VERSION__,
-        },
-        {
-          label: t(I18nKey.CREDITS$SOFTWARE_AGENT_SDK),
-          version: __OPENHANDS_SDK_VERSION__,
-        },
-      ].filter((item) => item.version.trim().length > 0),
-    [isSaas, t],
-  );
+  const releaseInfo = [
+    ...(isSaas
+      ? [
+          {
+            label: t(I18nKey.CREDITS$OPENHANDS_ENTERPRISE_EDITION),
+            version: __OPENHANDS_ENTERPRISE_VERSION__,
+          },
+        ]
+      : []),
+    {
+      label: t(I18nKey.CREDITS$OPENHANDS_WEB),
+      version: __OPENHANDS_WEB_VERSION__,
+    },
+    {
+      label: t(I18nKey.CREDITS$SOFTWARE_AGENT_SDK),
+      version: __OPENHANDS_SDK_VERSION__,
+    },
+  ].filter((item) => item.version.trim().length > 0);
 
   return (
     <main
