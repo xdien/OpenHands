@@ -238,6 +238,19 @@ class GithubIssue(ResolverViewInterface):
             conversation_instructions=conversation_instructions,
         )
 
+    async def _get_v1_initial_user_message(self, jinja_env: Environment) -> str:
+        user_instructions, conversation_instructions = await self._get_instructions(
+            jinja_env
+        )
+
+        parts: list[str] = []
+        if user_instructions.strip():
+            parts.append(user_instructions.strip())
+        if conversation_instructions.strip():
+            parts.append(conversation_instructions.strip())
+
+        return '\n\n'.join(parts)
+
     async def _create_v1_conversation(
         self,
         jinja_env: Environment,
@@ -247,13 +260,11 @@ class GithubIssue(ResolverViewInterface):
         """Create conversation using the new V1 app conversation system."""
         logger.info('[GitHub V1]: Creating V1 conversation')
 
-        user_instructions, conversation_instructions = await self._get_instructions(
-            jinja_env
-        )
+        initial_user_text = await self._get_v1_initial_user_message(jinja_env)
 
         # Create the initial message request
         initial_message = SendMessageRequest(
-            role='user', content=[TextContent(text=user_instructions)]
+            role='user', content=[TextContent(text=initial_user_text)]
         )
 
         # Create the GitHub V1 callback processor
@@ -265,7 +276,9 @@ class GithubIssue(ResolverViewInterface):
         # Create the V1 conversation start request with the callback processor
         start_request = AppConversationStartRequest(
             conversation_id=UUID(conversation_metadata.conversation_id),
-            system_message_suffix=conversation_instructions,
+            # NOTE: Resolver instructions are intended to be lower priority than the
+            # system prompt, so we inject them into the initial user message.
+            system_message_suffix=None,
             initial_message=initial_message,
             selected_repository=self.full_repo_name,
             selected_branch=self._get_branch_name(),
@@ -336,6 +349,18 @@ class GithubIssueComment(GithubIssue):
 
         return user_instructions, conversation_instructions
 
+    async def _get_v1_initial_user_message(self, jinja_env: Environment) -> str:
+        await self._load_resolver_context()
+        template = jinja_env.get_template('issue_comment_initial_message.j2')
+        return template.render(
+            issue_number=self.issue_number,
+            issue_title=self.title,
+            issue_body=self.description,
+            issue_comment=self.comment_body,
+            previous_comments=self.previous_comments,
+        ).strip()
+
+
 
 @dataclass
 class GithubPRComment(GithubIssueComment):
@@ -361,6 +386,19 @@ class GithubPRComment(GithubIssueComment):
         )
 
         return user_instructions, conversation_instructions
+
+    async def _get_v1_initial_user_message(self, jinja_env: Environment) -> str:
+        await self._load_resolver_context()
+        template = jinja_env.get_template('pr_update_initial_message.j2')
+        return template.render(
+            pr_number=self.issue_number,
+            branch_name=self.branch_name,
+            pr_title=self.title,
+            pr_body=self.description,
+            pr_comment=self.comment_body,
+            comments=self.previous_comments,
+        ).strip()
+
 
 
 @dataclass
@@ -407,6 +445,21 @@ class GithubInlinePRComment(GithubPRComment):
         )
 
         return user_instructions, conversation_instructions
+
+    async def _get_v1_initial_user_message(self, jinja_env: Environment) -> str:
+        await self._load_resolver_context()
+        template = jinja_env.get_template('pr_update_initial_message.j2')
+        return template.render(
+            pr_number=self.issue_number,
+            branch_name=self.branch_name,
+            pr_title=self.title,
+            pr_body=self.description,
+            file_location=self.file_location,
+            line_number=self.line_number,
+            pr_comment=self.comment_body,
+            comments=self.previous_comments,
+        ).strip()
+
 
     def _create_github_v1_callback_processor(self):
         """Create a V1 callback processor for GitHub integration."""
