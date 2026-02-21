@@ -1,11 +1,36 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
 import { defineConfig, loadEnv } from "vite";
+import fs from "node:fs";
+import path from "node:path";
 import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
+
+function readPoetryVersion(pyprojectPath: string) {
+  if (!fs.existsSync(pyprojectPath)) return "";
+  const pyproject = fs.readFileSync(pyprojectPath, "utf8");
+
+  const match = pyproject.match(
+    /^\[tool\.poetry\][\s\S]*?^version\s*=\s*"([^"]+)"/m,
+  );
+
+  return match?.[1] ?? "";
+}
+
+function readPoetryDependencyVersion(pyprojectPath: string, name: string) {
+  if (!fs.existsSync(pyprojectPath)) return "";
+  const pyproject = fs.readFileSync(pyprojectPath, "utf8");
+
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = pyproject.match(
+    new RegExp(`^${escaped}\\s*=\\s*\"([^\"]+)\"`, "m"),
+  );
+
+  return match?.[1] ?? "";
+}
 
 export default defineConfig(({ mode }) => {
   const {
@@ -24,7 +49,25 @@ export default defineConfig(({ mode }) => {
   const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
 
+  const OPENHANDS_WEB_VERSION = readPoetryVersion(
+    path.resolve(process.cwd(), "../pyproject.toml"),
+  );
+  const OPENHANDS_ENTERPRISE_VERSION = readPoetryVersion(
+    path.resolve(process.cwd(), "../enterprise/pyproject.toml"),
+  );
+  const OPENHANDS_SDK_VERSION = readPoetryDependencyVersion(
+    path.resolve(process.cwd(), "../pyproject.toml"),
+    "openhands-sdk",
+  );
+
   return {
+    define: {
+      __OPENHANDS_WEB_VERSION__: JSON.stringify(OPENHANDS_WEB_VERSION),
+      __OPENHANDS_ENTERPRISE_VERSION__: JSON.stringify(
+        OPENHANDS_ENTERPRISE_VERSION,
+      ),
+      __OPENHANDS_SDK_VERSION__: JSON.stringify(OPENHANDS_SDK_VERSION),
+    },
     plugins: [
       !process.env.VITEST && reactRouter(),
       viteTsconfigPaths(),

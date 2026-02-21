@@ -12,7 +12,7 @@ export function OpenHandsLogoButton() {
 
   return (
     <StyledTooltip content={tooltipText}>
-      <NavLink to="/" aria-label={ariaLabel}>
+      <NavLink to="/credits" aria-label={ariaLabel}>
         <OpenHandsLogo width={46} height={30} />
       </NavLink>
     </StyledTooltip>
