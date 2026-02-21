@@ -239,6 +239,16 @@ class GithubIssue(ResolverViewInterface):
         )
 
     async def _get_v1_initial_user_message(self, jinja_env: Environment) -> str:
+        """Build the initial user message for V1 resolver conversations.
+
+        For "issue opened" events (no specific comment body), we can simply
+        concatenate the user prompt and the rendered issue context.
+
+        Subclasses that represent comment-driven events (issue comments, PR review
+        comments, inline review comments) override this method to control ordering
+        (e.g., context first, then the triggering comment, then previous comments).
+        """
+
         user_instructions, conversation_instructions = await self._get_instructions(
             jinja_env
         )
