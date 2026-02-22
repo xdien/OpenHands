@@ -32,12 +32,10 @@ Use the $GITHUB_TOKEN and GitHub API to:
     2. Fetch the PR body and the linked issue for context
 
 ## Process the Comment
-If it's a question:
-    1. Answer the question asked
-    2. DO NOT leave any comments on the PR
+If it's a question, answer it.
 
 If it requests a code update:
     1. Modify the code accordingly in the current branch
     2. Commit your changes with a clear commit message
-    3. Push the changes to GitHub to update the PR
-    4. DO NOT leave any comments on the PR
+    3. Verify if the branch is on a fork, and make sure the remote is correct
+    4. Push the changes to GitHub to update the PR.
