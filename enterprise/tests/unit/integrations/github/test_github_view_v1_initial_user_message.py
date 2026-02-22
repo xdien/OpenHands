@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -11,8 +12,6 @@ from integrations.github.github_view import (
     GithubPRComment,
 )
 from integrations.types import UserData
-from pathlib import Path
-
 from jinja2 import Environment, FileSystemLoader
 
 from openhands.app_server.app_conversation.app_conversation_models import (
@@ -86,9 +85,7 @@ class TestGithubViewV1InitialUserMessage:
         async def _load_context():
             view.title = 'Issue title'
             view.description = 'Issue body'
-            view.previous_comments = [
-                MagicMock(author='alice', body='old comment 1')
-            ]
+            view.previous_comments = [MagicMock(author='alice', body='old comment 1')]
 
         view._load_resolver_context = AsyncMock(side_effect=_load_context)  # type: ignore[method-assign]
 
@@ -171,7 +168,9 @@ class TestGithubViewV1InitialUserMessage:
         assert 'old thread' in text
 
     @patch('integrations.github.github_view.get_app_conversation_service')
-    async def test_inline_pr_comment_v1_includes_file_context(self, mock_get_service, jinja_env):
+    async def test_inline_pr_comment_v1_includes_file_context(
+        self, mock_get_service, jinja_env
+    ):
         view = GithubInlinePRComment(
             installation_id=123,
             issue_number=7,

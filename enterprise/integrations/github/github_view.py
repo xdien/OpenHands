@@ -371,7 +371,6 @@ class GithubIssueComment(GithubIssue):
         ).strip()
 
 
-
 @dataclass
 class GithubPRComment(GithubIssueComment):
     branch_name: str
@@ -408,7 +407,6 @@ class GithubPRComment(GithubIssueComment):
             pr_comment=self.comment_body,
             comments=self.previous_comments,
         ).strip()
-
 
 
 @dataclass
@@ -469,7 +467,6 @@ class GithubInlinePRComment(GithubPRComment):
             pr_comment=self.comment_body,
             comments=self.previous_comments,
         ).strip()
-
 
     def _create_github_v1_callback_processor(self):
         """Create a V1 callback processor for GitHub integration."""
