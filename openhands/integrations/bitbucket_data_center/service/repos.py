@@ -1,6 +1,5 @@
 from urllib.parse import urlparse
 
-from openhands.core.logger import openhands_logger as logger
 from openhands.integrations.bitbucket_data_center.service.base import (
     BitbucketDCMixinBase,
 )
@@ -29,10 +28,8 @@ class BitbucketDCReposMixin(BitbucketDCMixinBase):
         if query:
             params['name'] = query
 
-        logger.info(f'TEMP_DC bitbucket_dc:get_installations url={url} BASE_URL={self.BASE_URL}')
         projects = await self._fetch_paginated_data(url, params, limit)
         keys = [p['key'] for p in projects if 'key' in p]
-        logger.info(f'TEMP_DC bitbucket_dc:get_installations returned {len(keys)} project(s): {keys}')
         return keys
 
     async def get_paginated_repos(

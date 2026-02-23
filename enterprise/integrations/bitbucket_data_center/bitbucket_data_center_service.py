@@ -48,12 +48,6 @@ class SaaSBitbucketDataCenterService(BitbucketDataCenterService):
         self.token_manager = TokenManager(external=external_token_manager)
 
     async def get_latest_token(self) -> SecretStr | None:
-        logger.info(
-            f'TEMP_DC bitbucket_dc:get_latest_token called — '
-            f'external_auth_token={"set" if self.external_auth_token else "None"} '
-            f'external_auth_id={self.external_auth_id} '
-            f'user_id={self.user_id}'
-        )
         bitbucket_dc_token = None
         if self.external_auth_token:
             bitbucket_dc_token = SecretStr(

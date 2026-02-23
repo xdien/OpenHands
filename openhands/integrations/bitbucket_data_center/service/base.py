@@ -74,22 +74,10 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
         try:
             async with httpx.AsyncClient(verify=httpx_verify_option()) as client:
                 headers = await self._get_headers()
-                auth_type = 'Bearer' if 'Bearer' in headers.get('Authorization', '') else 'Basic'
-                logger.info(
-                    f'TEMP_DC bitbucket_dc:_make_request url={url} params={params} '
-                    f'auth_type={auth_type} refresh={self.refresh}'
-                )
                 response = await self.execute_request(
                     client, url, headers, params, method
                 )
-                logger.info(
-                    f'TEMP_DC bitbucket_dc:_make_request status={response.status_code} url={url}'
-                )
                 if self.refresh and self._has_token_expired(response.status_code):
-                    logger.info(
-                        f'TEMP_DC bitbucket_dc:_make_request 401 received, retrying with refreshed token '
-                        f'url={url} response_body={response.text[:500]}'
-                    )
                     await self.get_latest_token()
                     headers = await self._get_headers()
                     response = await self.execute_request(
@@ -98,14 +86,6 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
                         headers=headers,
                         params=params,
                         method=method,
-                    )
-                    logger.info(
-                        f'TEMP_DC bitbucket_dc:_make_request retry status={response.status_code} url={url}'
-                    )
-                if not response.is_success:
-                    logger.info(
-                        f'TEMP_DC bitbucket_dc:_make_request error status={response.status_code} '
-                        f'url={url} body={response.text[:500]}'
                     )
                 response.raise_for_status()
                 return response.json(), dict(response.headers)
