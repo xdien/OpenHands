@@ -51,18 +51,11 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
     async def _get_headers(self) -> dict[str, str]:
         """Get headers for Bitbucket Data Center API requests."""
         token_value = self.token.get_secret_value()
-
-        if ':' in token_value:
-            auth_str = base64.b64encode(token_value.encode()).decode()
-            return {
-                'Authorization': f'Basic {auth_str}',
-                'Accept': 'application/json',
-            }
-        else:
-            return {
-                'Authorization': f'Bearer {token_value}',
-                'Accept': 'application/json',
-            }
+        auth_str = base64.b64encode(token_value.encode()).decode()
+        return {
+            'Authorization': f'Basic {auth_str}',
+            'Accept': 'application/json',
+        }
 
     async def _make_request(
         self,

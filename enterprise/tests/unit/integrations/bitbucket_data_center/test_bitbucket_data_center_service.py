@@ -66,7 +66,7 @@ class TestSaaSBitbucketDataCenterServiceGetLatestToken:
 
         mock_get.assert_awaited_once()
         assert result is not None
-        assert result.get_secret_value() == 'dc-token-from-access'
+        assert result.get_secret_value() == 'x-token-auth:dc-token-from-access'
 
     @pytest.mark.asyncio
     async def test_get_token_via_external_auth_id(self):
@@ -93,7 +93,7 @@ class TestSaaSBitbucketDataCenterServiceGetLatestToken:
 
         mock_get.assert_awaited_once()
         assert result is not None
-        assert result.get_secret_value() == 'dc-token-from-offline'
+        assert result.get_secret_value() == 'x-token-auth:dc-token-from-offline'
 
     @pytest.mark.asyncio
     async def test_get_token_via_user_id(self):
@@ -112,7 +112,7 @@ class TestSaaSBitbucketDataCenterServiceGetLatestToken:
 
         mock_get.assert_awaited_once()
         assert result is not None
-        assert result.get_secret_value() == 'dc-token-from-user-id'
+        assert result.get_secret_value() == 'x-token-auth:dc-token-from-user-id'
 
     @pytest.mark.asyncio
     async def test_returns_none_when_no_auth_info(self):
@@ -139,9 +139,9 @@ class TestSaaSBitbucketDataCenterServiceGetLatestToken:
             result = await service.get_latest_token()
 
         assert result is not None
-        assert result.get_secret_value() == 'refreshed-dc-token'
+        assert result.get_secret_value() == 'x-token-auth:refreshed-dc-token'
         assert service.token is not None
-        assert service.token.get_secret_value() == 'refreshed-dc-token'
+        assert service.token.get_secret_value() == 'x-token-auth:refreshed-dc-token'
 
 
 class TestSaaSBitbucketDataCenterServiceRefresh:

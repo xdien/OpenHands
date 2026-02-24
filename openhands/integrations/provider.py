@@ -743,20 +743,14 @@ class ProviderHandler:
                         # Access token format: use x-token-auth
                         remote_url = f'{protocol}://x-token-auth:{token_value}@{domain}/{repo_name}.git'
                 elif provider == ProviderType.BITBUCKET_DATA_CENTER:
-                    # Server clone URL: https://host/scm/{project_lower}/{repo}.git
-                    # DC uses HTTP Basic auth — PAT as password with any non-empty username
+                    # DC uses HTTP Basic auth — token must be in username:password format
                     project, repo_slug = (
                         repo_name.split('/', 1)
                         if '/' in repo_name
                         else (repo_name, repo_name)
                     )
                     scm_path = f'scm/{project.lower()}/{repo_slug}.git'
-                    if ':' in token_value:
-                        # username:password format
-                        remote_url = f'{protocol}://{token_value}@{domain}/{scm_path}'
-                    else:
-                        # HTTP Access Token (PAT) — use as password in Basic auth
-                        remote_url = f'{protocol}://x-token-auth:{token_value}@{domain}/{scm_path}'
+                    remote_url = f'{protocol}://{token_value}@{domain}/{scm_path}'
                 elif provider == ProviderType.AZURE_DEVOPS:
                     # Azure DevOps uses PAT with Basic auth
                     # Format: https://{anything}:{PAT}@dev.azure.com/{org}/{project}/_git/{repo}

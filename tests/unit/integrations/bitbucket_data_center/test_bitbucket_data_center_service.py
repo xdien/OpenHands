@@ -46,10 +46,11 @@ async def test_get_headers_basic_auth():
 @pytest.mark.asyncio
 async def test_get_headers_bearer():
     svc = BitbucketDataCenterService(
-        token=SecretStr('plaintoken'), base_domain='host.example.com'
+        token=SecretStr('x-token-auth:plaintoken'), base_domain='host.example.com'
     )
     headers = await svc._get_headers()
-    assert headers['Authorization'] == 'Bearer plaintoken'
+    expected = 'Basic ' + base64.b64encode(b'x-token-auth:plaintoken').decode()
+    assert headers['Authorization'] == expected
 
 
 # ── get_user ──────────────────────────────────────────────────────────────────

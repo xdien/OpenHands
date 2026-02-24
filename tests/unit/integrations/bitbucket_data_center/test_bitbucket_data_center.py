@@ -15,7 +15,7 @@ def handler():
     return BitbucketDataCenterPRHandler(
         owner='PROJ',
         repo='myrepo',
-        token='mytoken',
+        token='x-token-auth:mytoken',
         username=None,
         base_domain='bitbucket.example.com',
     )
@@ -38,8 +38,9 @@ def basic_auth_handler():
 def test_init_bearer_token(handler):
     assert handler.base_domain == 'bitbucket.example.com'
     assert handler.base_url == 'https://bitbucket.example.com/rest/api/1.0'
-    assert 'x-token-auth:' in handler.clone_url
-    assert handler.headers['Authorization'] == 'Bearer mytoken'
+    assert 'x-token-auth:mytoken@' in handler.clone_url
+    expected = 'Basic ' + base64.b64encode(b'x-token-auth:mytoken').decode()
+    assert handler.headers['Authorization'] == expected
 
 
 def test_init_basic_auth_token(basic_auth_handler):
@@ -65,7 +66,8 @@ def test_get_headers_basic_auth(basic_auth_handler):
 
 
 def test_get_headers_bearer(handler):
-    assert handler.get_headers()['Authorization'] == 'Bearer mytoken'
+    expected = 'Basic ' + base64.b64encode(b'x-token-auth:mytoken').decode()
+    assert handler.get_headers()['Authorization'] == expected
 
 
 # ── URLs ──────────────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ def test_get_clone_url_bearer(handler):
         handler.clone_url
         == 'https://x-token-auth:mytoken@bitbucket.example.com/scm/proj/myrepo.git'
     )
+
 
 
 def test_get_repo_url(handler):

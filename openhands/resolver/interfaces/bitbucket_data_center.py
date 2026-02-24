@@ -18,7 +18,7 @@ class BitbucketDataCenterPRHandler(IssueHandlerInterface):
     Uses Bitbucket Server REST API 1.0:
       https://{base_domain}/rest/api/1.0/projects/{owner}/repos/{repo}/...
 
-    Authentication: Basic auth (username:password) or Bearer (HTTP access token).
+    Authentication: Basic auth — token must be in username:password format.
     """
 
     def __init__(
@@ -47,15 +47,9 @@ class BitbucketDataCenterPRHandler(IssueHandlerInterface):
         self.owner = owner
 
     def get_headers(self) -> dict[str, str]:
-        if ':' in self.token:
-            auth_str = base64.b64encode(self.token.encode()).decode()
-            return {
-                'Authorization': f'Basic {auth_str}',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
+        auth_str = base64.b64encode(self.token.encode()).decode()
         return {
-            'Authorization': f'Bearer {self.token}',
+            'Authorization': f'Basic {auth_str}',
             'Accept': 'application/json',
             'Content-Type': 'application/json',
         }
@@ -73,9 +67,7 @@ class BitbucketDataCenterPRHandler(IssueHandlerInterface):
         )
 
     def get_clone_url(self) -> str:
-        if ':' in self.token:
-            return f'https://{self.token}@{self.base_domain}/scm/{self.owner.lower()}/{self.repo}.git'
-        return f'https://x-token-auth:{self.token}@{self.base_domain}/scm/{self.owner.lower()}/{self.repo}.git'
+        return f'https://{self.token}@{self.base_domain}/scm/{self.owner.lower()}/{self.repo}.git'
 
     def get_repo_url(self) -> str:
         return f'https://{self.base_domain}/projects/{self.owner}/repos/{self.repo}'
