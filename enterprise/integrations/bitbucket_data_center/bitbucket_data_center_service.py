@@ -56,9 +56,6 @@ class SaaSBitbucketDataCenterService(BitbucketDataCenterService):
                     idp=ProviderType.BITBUCKET_DATA_CENTER,
                 )
             )
-            logger.debug(
-                f'Got Bitbucket DC token {bitbucket_dc_token} from access token: {self.external_auth_token}'
-            )
         elif self.external_auth_id:
             offline_token = await self.token_manager.load_offline_token(
                 self.external_auth_id
@@ -68,17 +65,11 @@ class SaaSBitbucketDataCenterService(BitbucketDataCenterService):
                     offline_token, ProviderType.BITBUCKET_DATA_CENTER
                 )
             )
-            logger.info(
-                f'Got Bitbucket DC token {bitbucket_dc_token.get_secret_value()} from external auth user ID: {self.external_auth_id}'
-            )
         elif self.user_id:
             bitbucket_dc_token = SecretStr(
                 await self.token_manager.get_idp_token_from_idp_user_id(
                     self.user_id, ProviderType.BITBUCKET_DATA_CENTER
                 )
-            )
-            logger.debug(
-                f'Got Bitbucket DC token {bitbucket_dc_token} from user ID: {self.user_id}'
             )
         else:
             logger.warning('external_auth_token and user_id not set!')
