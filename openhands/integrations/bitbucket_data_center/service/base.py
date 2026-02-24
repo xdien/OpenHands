@@ -1,4 +1,3 @@
-import base64
 from typing import Any
 
 import httpx
@@ -49,11 +48,15 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
         return self.token
 
     async def _get_headers(self) -> dict[str, str]:
-        """Get headers for Bitbucket Data Center API requests."""
+        """Get headers for Bitbucket Data Center API requests.
+
+        Uses Bearer auth with the HTTP Access token portion of the credential.
+        Passwords are not supported; use a project or personal HTTP Access token.
+        """
         token_value = self.token.get_secret_value()
-        auth_str = base64.b64encode(token_value.encode()).decode()
+        bearer_token = token_value.split(':', 1)[1]
         return {
-            'Authorization': f'Basic {auth_str}',
+            'Authorization': f'Bearer {bearer_token}',
             'Accept': 'application/json',
         }
 
@@ -126,7 +129,7 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
     async def get_user(self) -> User:
         """Get the authenticated user's information."""
         if not self.user_id:
-            # PAT-only auth with no username — return a minimal user object.
+            # x-token-auth PAT or no token — no username available for lookup.
             return User(
                 id='',
                 login='',

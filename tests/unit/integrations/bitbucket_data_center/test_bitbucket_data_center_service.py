@@ -1,6 +1,5 @@
 """Tests for BitbucketDataCenterService."""
 
-import base64
 from unittest.mock import patch
 
 import pytest
@@ -30,27 +29,44 @@ def test_init_plain_domain():
     assert svc.BASE_URL == 'https://host.example.com/rest/api/1.0'
 
 
+# ── user_id derivation ────────────────────────────────────────────────────────
+
+
+def test_user_id_derived_from_username_password_token():
+    svc = BitbucketDataCenterService(token=SecretStr('alice:secret'))
+    assert svc.user_id == 'alice'
+
+
+def test_user_id_not_derived_from_xtoken_auth_token():
+    svc = BitbucketDataCenterService(token=SecretStr('x-token-auth:mytoken'))
+    assert svc.user_id is None
+
+
+def test_explicit_user_id_not_overridden():
+    svc = BitbucketDataCenterService(token=SecretStr('alice:secret'), user_id='bob')
+    assert svc.user_id == 'bob'
+
+
 # ── _get_headers ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_headers_basic_auth():
+async def test_get_headers_username_token():
     svc = BitbucketDataCenterService(
         token=SecretStr('user:pass'), base_domain='host.example.com'
     )
     headers = await svc._get_headers()
-    expected = 'Basic ' + base64.b64encode(b'user:pass').decode()
-    assert headers['Authorization'] == expected
+    assert headers['Authorization'] == 'Bearer pass'
 
 
 @pytest.mark.asyncio
-async def test_get_headers_bearer():
+async def test_get_headers_token_only_format():
     svc = BitbucketDataCenterService(
         token=SecretStr('x-token-auth:plaintoken'), base_domain='host.example.com'
     )
     headers = await svc._get_headers()
-    expected = 'Basic ' + base64.b64encode(b'x-token-auth:plaintoken').decode()
-    assert headers['Authorization'] == expected
+    assert headers['Authorization'] == 'Bearer plaintoken'
+
 
 
 # ── get_user ──────────────────────────────────────────────────────────────────
