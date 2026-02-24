@@ -15,6 +15,8 @@ from server.routes.org_models import (
     LiteLLMIntegrationError,
     MemberUpdateError,
     MeResponse,
+    OrgAppSettingsResponse,
+    OrgAppSettingsUpdate,
     OrgAuthorizationError,
     OrgCreate,
     OrgDatabaseError,
@@ -193,6 +195,109 @@ async def create_org(
     except Exception as e:
         logger.exception(
             'Unexpected error creating organization',
+            extra={'user_id': user_id, 'error': str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='An unexpected error occurred',
+        )
+
+
+@org_router.get('/app', response_model=OrgAppSettingsResponse)
+async def get_org_app_settings(
+    user_id: str = Depends(require_permission(Permission.MANAGE_APPLICATION_SETTINGS)),
+) -> OrgAppSettingsResponse:
+    """Get organization app settings for the user's current organization.
+
+    This endpoint retrieves application settings for the authenticated user's
+    current organization. Access requires the MANAGE_APPLICATION_SETTINGS permission,
+    which is granted to all organization members (member, admin, and owner roles).
+
+    Args:
+        user_id: Authenticated user ID (injected by require_permission dependency)
+
+    Returns:
+        OrgAppSettingsResponse: The organization app settings
+
+    Raises:
+        HTTPException: 401 if user is not authenticated
+        HTTPException: 403 if user lacks MANAGE_APPLICATION_SETTINGS permission
+        HTTPException: 404 if current organization not found
+    """
+    logger.info(
+        'Retrieving organization app settings',
+        extra={'user_id': user_id},
+    )
+
+    try:
+        org = OrgService.get_current_org_app_settings(user_id)
+        return OrgAppSettingsResponse.from_org(org)
+    except OrgNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Current organization not found',
+        )
+    except Exception as e:
+        logger.exception(
+            'Unexpected error retrieving organization app settings',
+            extra={'user_id': user_id, 'error': str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='An unexpected error occurred',
+        )
+
+
+@org_router.post('/app', response_model=OrgAppSettingsResponse)
+async def update_org_app_settings(
+    update_data: OrgAppSettingsUpdate,
+    user_id: str = Depends(require_permission(Permission.MANAGE_APPLICATION_SETTINGS)),
+) -> OrgAppSettingsResponse:
+    """Update organization app settings for the user's current organization.
+
+    This endpoint updates application settings for the authenticated user's
+    current organization. Access requires the MANAGE_APPLICATION_SETTINGS permission,
+    which is granted to all organization members (member, admin, and owner roles).
+
+    Args:
+        update_data: App settings update data
+        user_id: Authenticated user ID (injected by require_permission dependency)
+
+    Returns:
+        OrgAppSettingsResponse: The updated organization app settings
+
+    Raises:
+        HTTPException: 401 if user is not authenticated
+        HTTPException: 403 if user lacks MANAGE_APPLICATION_SETTINGS permission
+        HTTPException: 404 if current organization not found
+        HTTPException: 422 if validation errors occur (handled by FastAPI)
+        HTTPException: 500 if update fails
+    """
+    logger.info(
+        'Updating organization app settings',
+        extra={'user_id': user_id},
+    )
+
+    try:
+        updated_org = OrgService.update_current_org_app_settings(user_id, update_data)
+        return OrgAppSettingsResponse.from_org(updated_org)
+    except OrgNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Current organization not found',
+        )
+    except OrgDatabaseError:
+        logger.error(
+            'Database operation failed',
+            extra={'user_id': user_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Failed to update organization app settings',
+        )
+    except Exception as e:
+        logger.exception(
+            'Unexpected error updating organization app settings',
             extra={'user_id': user_id, 'error': str(e)},
         )
         raise HTTPException(
