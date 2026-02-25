@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -63,15 +62,6 @@ from storage.stored_offline_token import StoredOfflineToken  # noqa: E402
 from storage.stripe_customer import StripeCustomer  # noqa: E402, F401
 from storage.user import User  # noqa: E402
 
-# Import OpenHands models for app conversation tables
-from openhands.app_server.app_conversation.sql_app_conversation_info_service import (  # noqa: E402
-    StoredConversationMetadata as OpenHandsConversationMetadata,  # noqa: F401
-)
-from openhands.app_server.app_conversation.sql_app_conversation_start_task_service import (  # noqa: E402
-    StoredAppConversationStartTask,  # noqa: F401
-)
-from openhands.app_server.utils.sql_utils import Base as OpenHandsBase  # noqa: E402
-
 # Test constants
 TEST_USER_UUID = UUID('11111111-1111-1111-1111-111111111111')
 TEST_ORG_UUID = UUID('22222222-2222-2222-2222-222222222222')
@@ -102,43 +92,12 @@ def engine():
 
 
 @pytest.fixture
-def openhands_engine():
-    """Create an in-memory SQLite database engine for OpenHands tables."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
-    return engine
-
-
-@pytest.fixture
 def session_maker(engine):
     """Create a session maker bound to the test engine."""
     return sessionmaker(bind=engine)
 
 
 TEST_INSTALLATION_ID = 123456
-
-
-@pytest_asyncio.fixture
-async def openhands_db(openhands_engine):
-    """Create OpenHands tables and return async session maker."""
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-    # Create tables
-    async with openhands_engine.begin() as conn:
-        await conn.run_sync(OpenHandsBase.metadata.create_all)
-
-    # Create async session maker
-    async_session_maker = async_sessionmaker(
-        openhands_engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    yield async_session_maker
-
-    # Cleanup
-    await openhands_engine.dispose()
 
 
 @pytest.fixture
