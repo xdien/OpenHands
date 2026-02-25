@@ -197,8 +197,10 @@ class RemoteSandboxService(SandboxService):
 
         status = None
         pod_status = (runtime.get('pod_status') or '').lower()
+        _logger.info(f'pod status: {pod_status}')
         if pod_status:
             status = POD_STATUS_MAPPING.get(pod_status, None)
+        _logger.info(f'status: {status}')
 
         # If we failed to get the status from the pod status, fall back to status
         if status is None:

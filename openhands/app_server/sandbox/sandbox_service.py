@@ -106,6 +106,9 @@ class SandboxService(ABC):
             sandbox = await self.get_sandbox(sandbox_id)
             if sandbox is None:
                 raise SandboxError(f'Sandbox not found: {sandbox_id}')
+            _logger.info(
+                f'Polled sandbox status: {sandbox.status} for sandbox_id: {sandbox_id}'
+            )
 
             if sandbox.status == SandboxStatus.ERROR:
                 raise SandboxError(f'Sandbox entered error state: {sandbox_id}')
@@ -140,7 +143,9 @@ class SandboxService(ABC):
         try:
             agent_server_url = self._get_agent_server_url(sandbox)
             url = f'{agent_server_url.rstrip("/")}/alive'
+            _logger.info(f'agent server URL: {url}')
             response = await httpx_client.get(url, timeout=5.0)
+            _logger.info(f'agent server response: {response}')
             return response.is_success
         except Exception as exc:
             _logger.debug(
