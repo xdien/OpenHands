@@ -2024,3 +2024,166 @@ async def test_switch_org_user_not_found():
             await OrgService.switch_org(user_id, org_id)
 
         assert 'User not found' in str(exc_info.value)
+
+
+# =============================================================================
+# Tests for LLM Settings methods
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_llm_settings_for_current_org_success():
+    """
+    GIVEN: User with a current organization
+    WHEN: get_llm_settings_for_current_org is called
+    THEN: Returns the organization
+    """
+    # Arrange
+    user_id = 'test-user-123'
+    org_id = uuid.uuid4()
+
+    mock_user = MagicMock()
+    mock_user.current_org_id = org_id
+
+    mock_org = Org(
+        id=org_id,
+        name='Test Organization',
+        default_llm_model='claude-3',
+    )
+
+    with (
+        patch(
+            'storage.org_service.UserStore.get_user_by_id_async',
+            AsyncMock(return_value=mock_user),
+        ),
+        patch(
+            'storage.org_service.OrgStore.get_org_by_id_async',
+            AsyncMock(return_value=mock_org),
+        ),
+    ):
+        # Act
+        result = await OrgService.get_llm_settings_for_current_org(user_id)
+
+        # Assert
+        assert result is not None
+        assert result.id == org_id
+        assert result.default_llm_model == 'claude-3'
+
+
+@pytest.mark.asyncio
+async def test_get_llm_settings_for_current_org_user_not_found():
+    """
+    GIVEN: User does not exist
+    WHEN: get_llm_settings_for_current_org is called
+    THEN: Raises OrgNotFoundError
+    """
+    # Arrange
+    user_id = 'nonexistent-user'
+
+    with patch(
+        'storage.org_service.UserStore.get_user_by_id_async',
+        AsyncMock(return_value=None),
+    ):
+        # Act & Assert
+        with pytest.raises(OrgNotFoundError) as exc_info:
+            await OrgService.get_llm_settings_for_current_org(user_id)
+
+        assert 'No current organization' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_update_llm_settings_for_current_org_with_llm_api_key():
+    """
+    GIVEN: User with current org and llm_api_key in update settings
+    WHEN: update_llm_settings_for_current_org is called
+    THEN: Updates org and propagates llm_api_key to members
+    """
+    from server.routes.org_models import OrgLLMSettingsUpdate
+
+    # Arrange
+    user_id = 'test-user-123'
+    org_id = uuid.uuid4()
+
+    mock_user = MagicMock()
+    mock_user.current_org_id = org_id
+
+    mock_org = Org(
+        id=org_id,
+        name='Test Organization',
+        default_llm_model='new-model',
+    )
+
+    llm_settings = OrgLLMSettingsUpdate(
+        default_llm_model='new-model',
+        llm_api_key='new-api-key-for-members',
+    )
+
+    with (
+        patch(
+            'storage.org_service.UserStore.get_user_by_id_async',
+            AsyncMock(return_value=mock_user),
+        ),
+        patch(
+            'storage.org_service.OrgStore.update_org_llm_settings_async',
+            AsyncMock(return_value=mock_org),
+        ) as mock_update,
+    ):
+        # Act
+        result = await OrgService.update_llm_settings_for_current_org(
+            user_id, llm_settings
+        )
+
+        # Assert
+        assert result is not None
+        assert result.default_llm_model == 'new-model'
+        mock_update.assert_called_once_with(org_id, llm_settings)
+
+
+@pytest.mark.asyncio
+async def test_update_llm_settings_for_current_org_empty_settings():
+    """
+    GIVEN: User with current org and empty settings (no updates)
+    WHEN: update_llm_settings_for_current_org is called
+    THEN: Returns current org without calling update
+    """
+    from server.routes.org_models import OrgLLMSettingsUpdate
+
+    # Arrange
+    user_id = 'test-user-123'
+    org_id = uuid.uuid4()
+
+    mock_user = MagicMock()
+    mock_user.current_org_id = org_id
+
+    mock_org = Org(
+        id=org_id,
+        name='Test Organization',
+        default_llm_model='existing-model',
+    )
+
+    llm_settings = OrgLLMSettingsUpdate()  # All None
+
+    with (
+        patch(
+            'storage.org_service.UserStore.get_user_by_id_async',
+            AsyncMock(return_value=mock_user),
+        ),
+        patch(
+            'storage.org_service.OrgStore.update_org_llm_settings_async',
+            AsyncMock(),
+        ) as mock_update,
+        patch(
+            'storage.org_service.OrgStore.get_org_by_id_async',
+            AsyncMock(return_value=mock_org),
+        ),
+    ):
+        # Act
+        result = await OrgService.update_llm_settings_for_current_org(
+            user_id, llm_settings
+        )
+
+        # Assert
+        assert result is not None
+        assert result.default_llm_model == 'existing-model'
+        # update_org_llm_settings_async should NOT be called for empty settings
+        mock_update.assert_not_called()

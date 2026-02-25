@@ -18,6 +18,8 @@ from server.routes.org_models import (
     OrgAuthorizationError,
     OrgCreate,
     OrgDatabaseError,
+    OrgLLMSettingsResponse,
+    OrgLLMSettingsUpdate,
     OrgMemberNotFoundError,
     OrgMemberPage,
     OrgMemberResponse,
@@ -198,6 +200,105 @@ async def create_org(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail='An unexpected error occurred',
+        )
+
+
+@org_router.get('/llm', response_model=OrgLLMSettingsResponse)
+async def get_org_llm_settings(
+    user_id: str = Depends(require_permission(Permission.VIEW_LLM_SETTINGS)),
+) -> OrgLLMSettingsResponse:
+    """Get LLM settings for the user's current organization.
+
+    This endpoint retrieves the LLM configuration settings for the
+    authenticated user's current organization. All organization members
+    can view these settings.
+
+    Returns:
+        OrgLLMSettingsResponse: The organization's LLM settings
+
+    Raises:
+        HTTPException: 401 if not authenticated
+        HTTPException: 403 if not a member of any organization
+        HTTPException: 404 if current organization not found
+        HTTPException: 500 if retrieval fails
+    """
+    logger.info(
+        'Getting organization LLM settings',
+        extra={'user_id': user_id},
+    )
+
+    try:
+        org = await OrgService.get_llm_settings_for_current_org(user_id)
+        return OrgLLMSettingsResponse.from_org(org)
+    except OrgNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.exception(
+            'Error getting organization LLM settings',
+            extra={'user_id': user_id, 'error': str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Failed to retrieve LLM settings',
+        )
+
+
+@org_router.post('/llm', response_model=OrgLLMSettingsResponse)
+async def update_org_llm_settings(
+    settings: OrgLLMSettingsUpdate,
+    user_id: str = Depends(require_permission(Permission.EDIT_LLM_SETTINGS)),
+) -> OrgLLMSettingsResponse:
+    """Update LLM settings for the user's current organization.
+
+    This endpoint updates the LLM configuration settings for the
+    authenticated user's current organization. Only admins and owners
+    can update these settings.
+
+    Args:
+        settings: The LLM settings to update (only non-None fields are updated)
+
+    Returns:
+        OrgLLMSettingsResponse: The updated organization's LLM settings
+
+    Raises:
+        HTTPException: 401 if not authenticated
+        HTTPException: 403 if user lacks EDIT_LLM_SETTINGS permission
+        HTTPException: 404 if current organization not found
+        HTTPException: 500 if update fails
+    """
+    logger.info(
+        'Updating organization LLM settings',
+        extra={'user_id': user_id},
+    )
+
+    try:
+        org = await OrgService.update_llm_settings_for_current_org(user_id, settings)
+        return OrgLLMSettingsResponse.from_org(org)
+    except OrgNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except OrgDatabaseError as e:
+        logger.error(
+            'Database error updating LLM settings',
+            extra={'user_id': user_id, 'error': str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Failed to update LLM settings',
+        )
+    except Exception as e:
+        logger.exception(
+            'Error updating organization LLM settings',
+            extra={'user_id': user_id, 'error': str(e)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Failed to update LLM settings',
         )
 
 
