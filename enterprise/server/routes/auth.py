@@ -549,6 +549,10 @@ async def keycloak_offline_callback(code: str, state: str, request: Request):
         user_id=user_info['sub'], offline_token=keycloak_refresh_token
     )
 
+    logger.warning(
+        'auth_keycloak_offline_callback', extra={'base_url': request.base_url}
+    )
+
     return RedirectResponse(state if state else request.base_url, status_code=302)
 
 
