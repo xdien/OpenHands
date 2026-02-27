@@ -161,10 +161,13 @@ async def test_is_domain_blocked_with_whitespace(domain_blocker, mock_store):
 async def test_is_domain_blocked_multiple_blocked_domains(domain_blocker, mock_store):
     """Test that is_domain_blocked correctly checks multiple domains."""
     # Arrange
-    mock_store.is_domain_blocked = AsyncMock(side_effect=lambda domain: domain in [
-        'other-domain.com',
-        'blocked.org',
-    ])
+    mock_store.is_domain_blocked = AsyncMock(
+        side_effect=lambda domain: domain
+        in [
+            'other-domain.com',
+            'blocked.org',
+        ]
+    )
 
     # Act
     result1 = await domain_blocker.is_domain_blocked('user@other-domain.com')
@@ -227,7 +230,9 @@ async def test_is_domain_blocked_tld_pattern_does_not_block_different_tld(
 
 
 @pytest.mark.asyncio
-async def test_is_domain_blocked_tld_pattern_case_insensitive(domain_blocker, mock_store):
+async def test_is_domain_blocked_tld_pattern_case_insensitive(
+    domain_blocker, mock_store
+):
     """Test that TLD pattern matching is case-insensitive."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
@@ -241,7 +246,9 @@ async def test_is_domain_blocked_tld_pattern_case_insensitive(domain_blocker, mo
 
 
 @pytest.mark.asyncio
-async def test_is_domain_blocked_tld_pattern_with_multi_level_tld(domain_blocker, mock_store):
+async def test_is_domain_blocked_tld_pattern_with_multi_level_tld(
+    domain_blocker, mock_store
+):
     """Test that TLD pattern works with multi-level TLDs like .co.uk."""
     # Arrange
     mock_store.is_domain_blocked.side_effect = lambda domain: domain.endswith('.co.uk')
@@ -274,7 +281,9 @@ async def test_is_domain_blocked_domain_pattern_blocks_exact_match(
 
 
 @pytest.mark.asyncio
-async def test_is_domain_blocked_domain_pattern_blocks_subdomain(domain_blocker, mock_store):
+async def test_is_domain_blocked_domain_pattern_blocks_subdomain(
+    domain_blocker, mock_store
+):
     """Test that domain pattern blocks subdomains of that domain."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
