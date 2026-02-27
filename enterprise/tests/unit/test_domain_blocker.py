@@ -161,15 +161,15 @@ async def test_is_domain_blocked_with_whitespace(domain_blocker, mock_store):
 async def test_is_domain_blocked_multiple_blocked_domains(domain_blocker, mock_store):
     """Test that is_domain_blocked correctly checks multiple domains."""
     # Arrange
-    mock_store.is_domain_blocked.side_effect = lambda domain: domain in [
+    mock_store.is_domain_blocked = AsyncMock(side_effect=lambda domain: domain in [
         'other-domain.com',
         'blocked.org',
-    ]
+    ])
 
     # Act
-    result1 = domain_blocker.is_domain_blocked('user@other-domain.com')
-    result2 = domain_blocker.is_domain_blocked('user@blocked.org')
-    result3 = domain_blocker.is_domain_blocked('user@allowed.com')
+    result1 = await domain_blocker.is_domain_blocked('user@other-domain.com')
+    result2 = await domain_blocker.is_domain_blocked('user@blocked.org')
+    result3 = await domain_blocker.is_domain_blocked('user@allowed.com')
 
     # Assert
     assert result1 is True
@@ -247,9 +247,9 @@ async def test_is_domain_blocked_tld_pattern_with_multi_level_tld(domain_blocker
     mock_store.is_domain_blocked.side_effect = lambda domain: domain.endswith('.co.uk')
 
     # Act
-    result_match = domain_blocker.is_domain_blocked('user@example.co.uk')
-    result_subdomain = domain_blocker.is_domain_blocked('user@api.example.co.uk')
-    result_no_match = domain_blocker.is_domain_blocked('user@example.uk')
+    result_match = await domain_blocker.is_domain_blocked('user@example.co.uk')
+    result_subdomain = await domain_blocker.is_domain_blocked('user@api.example.co.uk')
+    result_no_match = await domain_blocker.is_domain_blocked('user@example.uk')
 
     # Assert
     assert result_match is True
@@ -346,9 +346,9 @@ async def test_is_domain_blocked_subdomain_pattern_blocks_exact_and_nested(
     )
 
     # Act
-    result_exact = domain_blocker.is_domain_blocked('user@api.example.com')
-    result_nested = domain_blocker.is_domain_blocked('user@v1.api.example.com')
-    result_parent = domain_blocker.is_domain_blocked('user@example.com')
+    result_exact = await domain_blocker.is_domain_blocked('user@api.example.com')
+    result_nested = await domain_blocker.is_domain_blocked('user@v1.api.example.com')
+    result_parent = await domain_blocker.is_domain_blocked('user@example.com')
 
     # Assert
     assert result_exact is True
@@ -363,8 +363,8 @@ async def test_is_domain_blocked_domain_with_hyphens(domain_blocker, mock_store)
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result_exact = domain_blocker.is_domain_blocked('user@my-company.com')
-    result_subdomain = domain_blocker.is_domain_blocked('user@api.my-company.com')
+    result_exact = await domain_blocker.is_domain_blocked('user@my-company.com')
+    result_subdomain = await domain_blocker.is_domain_blocked('user@api.my-company.com')
 
     # Assert
     assert result_exact is True
@@ -379,8 +379,8 @@ async def test_is_domain_blocked_domain_with_numbers(domain_blocker, mock_store)
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result_exact = domain_blocker.is_domain_blocked('user@test123.com')
-    result_subdomain = domain_blocker.is_domain_blocked('user@api.test123.com')
+    result_exact = await domain_blocker.is_domain_blocked('user@test123.com')
+    result_subdomain = await domain_blocker.is_domain_blocked('user@api.test123.com')
 
     # Assert
     assert result_exact is True
