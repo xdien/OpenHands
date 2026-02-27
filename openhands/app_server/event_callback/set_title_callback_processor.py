@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from uuid import UUID
 
@@ -41,7 +42,7 @@ class SetTitleCallbackProcessor(EventCallbackProcessor):
             get_httpx_client,
         )
 
-        _logger.info(f'Callback {callback.id} Invoked for event {event}')
+        _logger.info(f"Callback {callback.id} Invoked for event {event}")
 
         state = InjectorState()
         setattr(state, USER_CONTEXT_ATTR, ADMIN)
@@ -51,7 +52,6 @@ class SetTitleCallbackProcessor(EventCallbackProcessor):
             get_app_conversation_info_service(state) as app_conversation_info_service,
             get_httpx_client(state) as httpx_client,
         ):
-            # Generate a title for the conversation
             app_conversation = await app_conversation_service.get_app_conversation(
                 conversation_id
             )
@@ -61,15 +61,31 @@ class SetTitleCallbackProcessor(EventCallbackProcessor):
             app_conversation_url = replace_localhost_hostname_for_docker(
                 app_conversation_url
             )
-            response = await httpx_client.post(
-                f'{app_conversation_url}/generate_title',
-                headers={
-                    'X-Session-API-Key': app_conversation.session_api_key,
-                },
-                content='{}',
-            )
-            response.raise_for_status()
-            title = response.json()['title']
+
+            # The agent-server auto-titles conversations (when enabled) after the
+            # first user message arrives. Poll the conversation resource until the
+            # title is available.
+            title: str | None = None
+            for delay_s in (0.0, 0.25, 0.5, 1.0, 2.0):
+                response = await httpx_client.get(
+                    app_conversation_url,
+                    headers={
+                        "X-Session-API-Key": app_conversation.session_api_key,
+                    },
+                )
+                response.raise_for_status()
+                title = response.json().get("title")
+                if title:
+                    break
+                if delay_s:
+                    await asyncio.sleep(delay_s)
+
+            if not title:
+                _logger.info(
+                    f"Conversation {conversation_id} title not available yet; "
+                    "will retry on a future message event."
+                )
+                return None
 
             # Save the conversation info
             info = AppConversationInfo(
