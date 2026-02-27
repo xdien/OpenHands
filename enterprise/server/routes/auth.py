@@ -242,6 +242,7 @@ async def keycloak_callback(
         if forwarded_for:
             user_ip = forwarded_for.split(',')[0].strip()
 
+        logger.info('trace_before_rcaptcha')
         try:
             result = recaptcha_service.create_assessment(
                 token=recaptcha_token,
@@ -270,6 +271,7 @@ async def keycloak_callback(
             # Fail open - continue with login if reCAPTCHA service unavailable
 
     # Check if email domain is blocked
+    logger.info('trace_before_domain_blocker')
     if email and domain_blocker.is_domain_blocked(email):
         logger.warning(
             f'Blocked authentication attempt for email: {email}, user_id: {user_id}'
@@ -286,6 +288,7 @@ async def keycloak_callback(
         )
 
     # Check for duplicate email with + modifier
+    logger.info('trace_before_email_checker')
     if email:
         try:
             has_duplicate = await token_manager.check_duplicate_base_email(
@@ -322,6 +325,7 @@ async def keycloak_callback(
             )
 
     # Check email verification status
+    logger.info('trace_before_email_verifier')
     email_verified = user_info.get('email_verified', False)
     if not email_verified:
         # Send verification email
@@ -338,6 +342,7 @@ async def keycloak_callback(
         response = RedirectResponse(verification_redirect_url, status_code=302)
         return response
 
+    logger.info('trace_before_idp_tokens')
     # default to github IDP for now.
     # TODO: remove default once Keycloak is updated universally with the new attribute.
     idp: str = user_info.get('identity_provider', ProviderType.GITHUB.value)
@@ -358,6 +363,7 @@ async def keycloak_callback(
             content={'error': 'Not authorized via waitlist'},
         )
 
+    logger.info('trace_before_offline_token')
     valid_offline_token = (
         await token_manager.validate_offline_token(user_id=user_info['sub'])
         if idp_type != 'saml'
@@ -370,6 +376,7 @@ async def keycloak_callback(
 
     # adding in posthog tracking
 
+    logger.info('trace_before_posthog')
     # If this is a feature environment, add "FEATURE_" prefix to user_id for PostHog
     posthog_user_id = f'FEATURE_{user_id}' if IS_FEATURE_ENV else user_id
 
