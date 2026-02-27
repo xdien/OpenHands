@@ -103,12 +103,14 @@ class TokenManager:
     async def get_keycloak_tokens(
         self, code: str, redirect_uri: str
     ) -> tuple[str | None, str | None]:
+        logger.info("trace_get_keycloak_tokens")
         try:
-            token_response = await get_keycloak_openid(self.external).a_token(
+            keycloak_openid = get_keycloak_openid(self.external)
+            token_response = await asyncio.wait_for(keycloak_openid.a_token(
                 grant_type='authorization_code',
                 code=code,
                 redirect_uri=redirect_uri,
-            )
+            ), 15)
 
             logger.debug(f'token_response: {token_response}')
 
