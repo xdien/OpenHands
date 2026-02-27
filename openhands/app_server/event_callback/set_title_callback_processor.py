@@ -62,21 +62,24 @@ class SetTitleCallbackProcessor(EventCallbackProcessor):
                 app_conversation_url
             )
 
-            # The agent-server auto-titles conversations (when enabled) after the
-            # first user message arrives. Poll the conversation resource until the
-            # title is available.
-            title: str | None = None
-            for delay_s in (0.0, 0.25, 0.5, 1.0, 2.0):
-                response = await httpx_client.get(
-                    app_conversation_url,
-                    headers={
-                        "X-Session-API-Key": app_conversation.session_api_key,
-                    },
-                )
-                response.raise_for_status()
-                title = response.json().get("title")
-                if title:
-                    break
+            # Poll with exponential backoff: ~3.75s total wait time before giving up
+            _TITLE_POLL_DELAYS_S = (0.25, 0.5, 1.0, 2.0)
+            for delay_s in _TITLE_POLL_DELAYS_S:
+                try:
+                    response = await httpx_client.get(
+                        app_conversation_url,
+                        headers={
+                            "X-Session-API-Key": app_conversation.session_api_key,
+                        },
+                    )
+                    response.raise_for_status()
+                except Exception:
+                    # Network failures are acceptable - we'll retry on next message
+                    pass
+                else:
+                    title = response.json().get("title")
+                    if title:
+                        break
                 if delay_s:
                     await asyncio.sleep(delay_s)
 
