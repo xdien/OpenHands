@@ -61,7 +61,7 @@ async def test_set_title_callback_processor_fetches_title_from_conversation():
     app_conversation_info_service = AsyncMock()
     event_callback_service = AsyncMock()
 
-    httpx_client = _FakeHttpxClient(titles=[None, "Generated Title"])
+    httpx_client = _FakeHttpxClient(titles=[None, None, None, "Generated Title"])
 
     def get_app_conversation_service(_state):
         return _ctx(app_conversation_service)
