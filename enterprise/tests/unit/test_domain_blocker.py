@@ -1,6 +1,6 @@
 """Unit tests for DomainBlocker class."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from server.auth.domain_blocker import DomainBlocker
@@ -9,7 +9,9 @@ from server.auth.domain_blocker import DomainBlocker
 @pytest.fixture
 def mock_store():
     """Create a mock BlockedEmailDomainStore for testing."""
-    return MagicMock()
+    store = MagicMock()
+    store.is_domain_blocked = AsyncMock()
+    return store
 
 
 @pytest.fixture
@@ -57,98 +59,106 @@ def test_extract_domain_invalid_emails(domain_blocker, email, expected):
     assert result == expected
 
 
-def test_is_domain_blocked_with_none_email(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_with_none_email(domain_blocker, mock_store):
     """Test that is_domain_blocked returns False when email is None."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked(None)
+    result = await domain_blocker.is_domain_blocked(None)
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_not_called()
 
 
-def test_is_domain_blocked_with_empty_email(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_with_empty_email(domain_blocker, mock_store):
     """Test that is_domain_blocked returns False when email is empty."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('')
+    result = await domain_blocker.is_domain_blocked('')
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_not_called()
 
 
-def test_is_domain_blocked_with_invalid_email(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_with_invalid_email(domain_blocker, mock_store):
     """Test that is_domain_blocked returns False when email format is invalid."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('invalid-email')
+    result = await domain_blocker.is_domain_blocked('invalid-email')
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_not_called()
 
 
-def test_is_domain_blocked_domain_not_blocked(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_not_blocked(domain_blocker, mock_store):
     """Test that is_domain_blocked returns False when domain is not blocked."""
     # Arrange
     mock_store.is_domain_blocked.return_value = False
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@example.com')
+    result = await domain_blocker.is_domain_blocked('user@example.com')
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_called_once_with('example.com')
 
 
-def test_is_domain_blocked_domain_blocked(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_blocked(domain_blocker, mock_store):
     """Test that is_domain_blocked returns True when domain is blocked."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@colsch.us')
+    result = await domain_blocker.is_domain_blocked('user@colsch.us')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('colsch.us')
 
 
-def test_is_domain_blocked_case_insensitive(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_case_insensitive(domain_blocker, mock_store):
     """Test that is_domain_blocked performs case-insensitive domain extraction."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@COLSCH.US')
+    result = await domain_blocker.is_domain_blocked('user@COLSCH.US')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('colsch.us')
 
 
-def test_is_domain_blocked_with_whitespace(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_with_whitespace(domain_blocker, mock_store):
     """Test that is_domain_blocked handles emails with whitespace correctly."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('  user@colsch.us  ')
+    result = await domain_blocker.is_domain_blocked('  user@colsch.us  ')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('colsch.us')
 
 
-def test_is_domain_blocked_multiple_blocked_domains(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_multiple_blocked_domains(domain_blocker, mock_store):
     """Test that is_domain_blocked correctly checks multiple domains."""
     # Arrange
     mock_store.is_domain_blocked.side_effect = lambda domain: domain in [
@@ -168,7 +178,8 @@ def test_is_domain_blocked_multiple_blocked_domains(domain_blocker, mock_store):
     assert mock_store.is_domain_blocked.call_count == 3
 
 
-def test_is_domain_blocked_tld_pattern_blocks_matching_domain(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_tld_pattern_blocks_matching_domain(
     domain_blocker, mock_store
 ):
     """Test that TLD pattern blocks domains ending with that TLD."""
@@ -176,14 +187,15 @@ def test_is_domain_blocked_tld_pattern_blocks_matching_domain(
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@company.us')
+    result = await domain_blocker.is_domain_blocked('user@company.us')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('company.us')
 
 
-def test_is_domain_blocked_tld_pattern_blocks_subdomain_with_tld(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_tld_pattern_blocks_subdomain_with_tld(
     domain_blocker, mock_store
 ):
     """Test that TLD pattern blocks subdomains with that TLD."""
@@ -191,14 +203,15 @@ def test_is_domain_blocked_tld_pattern_blocks_subdomain_with_tld(
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@subdomain.company.us')
+    result = await domain_blocker.is_domain_blocked('user@subdomain.company.us')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('subdomain.company.us')
 
 
-def test_is_domain_blocked_tld_pattern_does_not_block_different_tld(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_tld_pattern_does_not_block_different_tld(
     domain_blocker, mock_store
 ):
     """Test that TLD pattern does not block domains with different TLD."""
@@ -206,27 +219,29 @@ def test_is_domain_blocked_tld_pattern_does_not_block_different_tld(
     mock_store.is_domain_blocked.return_value = False
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@company.com')
+    result = await domain_blocker.is_domain_blocked('user@company.com')
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_called_once_with('company.com')
 
 
-def test_is_domain_blocked_tld_pattern_case_insensitive(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_tld_pattern_case_insensitive(domain_blocker, mock_store):
     """Test that TLD pattern matching is case-insensitive."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@COMPANY.US')
+    result = await domain_blocker.is_domain_blocked('user@COMPANY.US')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('company.us')
 
 
-def test_is_domain_blocked_tld_pattern_with_multi_level_tld(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_tld_pattern_with_multi_level_tld(domain_blocker, mock_store):
     """Test that TLD pattern works with multi-level TLDs like .co.uk."""
     # Arrange
     mock_store.is_domain_blocked.side_effect = lambda domain: domain.endswith('.co.uk')
@@ -242,7 +257,8 @@ def test_is_domain_blocked_tld_pattern_with_multi_level_tld(domain_blocker, mock
     assert result_no_match is False
 
 
-def test_is_domain_blocked_domain_pattern_blocks_exact_match(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_pattern_blocks_exact_match(
     domain_blocker, mock_store
 ):
     """Test that domain pattern blocks exact domain match."""
@@ -250,27 +266,29 @@ def test_is_domain_blocked_domain_pattern_blocks_exact_match(
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@example.com')
+    result = await domain_blocker.is_domain_blocked('user@example.com')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('example.com')
 
 
-def test_is_domain_blocked_domain_pattern_blocks_subdomain(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_pattern_blocks_subdomain(domain_blocker, mock_store):
     """Test that domain pattern blocks subdomains of that domain."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@subdomain.example.com')
+    result = await domain_blocker.is_domain_blocked('user@subdomain.example.com')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('subdomain.example.com')
 
 
-def test_is_domain_blocked_domain_pattern_blocks_multi_level_subdomain(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_pattern_blocks_multi_level_subdomain(
     domain_blocker, mock_store
 ):
     """Test that domain pattern blocks multi-level subdomains."""
@@ -278,14 +296,15 @@ def test_is_domain_blocked_domain_pattern_blocks_multi_level_subdomain(
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@api.v2.example.com')
+    result = await domain_blocker.is_domain_blocked('user@api.v2.example.com')
 
     # Assert
     assert result is True
     mock_store.is_domain_blocked.assert_called_once_with('api.v2.example.com')
 
 
-def test_is_domain_blocked_domain_pattern_does_not_block_similar_domain(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_pattern_does_not_block_similar_domain(
     domain_blocker, mock_store
 ):
     """Test that domain pattern does not block domains that contain but don't match the pattern."""
@@ -293,14 +312,15 @@ def test_is_domain_blocked_domain_pattern_does_not_block_similar_domain(
     mock_store.is_domain_blocked.return_value = False
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@notexample.com')
+    result = await domain_blocker.is_domain_blocked('user@notexample.com')
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_called_once_with('notexample.com')
 
 
-def test_is_domain_blocked_domain_pattern_does_not_block_different_tld(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_pattern_does_not_block_different_tld(
     domain_blocker, mock_store
 ):
     """Test that domain pattern does not block same domain with different TLD."""
@@ -308,14 +328,15 @@ def test_is_domain_blocked_domain_pattern_does_not_block_different_tld(
     mock_store.is_domain_blocked.return_value = False
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@example.org')
+    result = await domain_blocker.is_domain_blocked('user@example.org')
 
     # Assert
     assert result is False
     mock_store.is_domain_blocked.assert_called_once_with('example.org')
 
 
-def test_is_domain_blocked_subdomain_pattern_blocks_exact_and_nested(
+@pytest.mark.asyncio
+async def test_is_domain_blocked_subdomain_pattern_blocks_exact_and_nested(
     domain_blocker, mock_store
 ):
     """Test that blocking a subdomain also blocks its nested subdomains."""
@@ -335,7 +356,8 @@ def test_is_domain_blocked_subdomain_pattern_blocks_exact_and_nested(
     assert result_parent is False
 
 
-def test_is_domain_blocked_domain_with_hyphens(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_with_hyphens(domain_blocker, mock_store):
     """Test that domain patterns work with hyphenated domains."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
@@ -350,7 +372,8 @@ def test_is_domain_blocked_domain_with_hyphens(domain_blocker, mock_store):
     assert mock_store.is_domain_blocked.call_count == 2
 
 
-def test_is_domain_blocked_domain_with_numbers(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_domain_with_numbers(domain_blocker, mock_store):
     """Test that domain patterns work with numeric domains."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
@@ -365,13 +388,14 @@ def test_is_domain_blocked_domain_with_numbers(domain_blocker, mock_store):
     assert mock_store.is_domain_blocked.call_count == 2
 
 
-def test_is_domain_blocked_very_long_subdomain_chain(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_very_long_subdomain_chain(domain_blocker, mock_store):
     """Test that blocking works with very long subdomain chains."""
     # Arrange
     mock_store.is_domain_blocked.return_value = True
 
     # Act
-    result = domain_blocker.is_domain_blocked(
+    result = await domain_blocker.is_domain_blocked(
         'user@level4.level3.level2.level1.example.com'
     )
 
@@ -382,13 +406,14 @@ def test_is_domain_blocked_very_long_subdomain_chain(domain_blocker, mock_store)
     )
 
 
-def test_is_domain_blocked_handles_store_exception(domain_blocker, mock_store):
+@pytest.mark.asyncio
+async def test_is_domain_blocked_handles_store_exception(domain_blocker, mock_store):
     """Test that is_domain_blocked returns False when store raises an exception."""
     # Arrange
     mock_store.is_domain_blocked.side_effect = Exception('Database connection error')
 
     # Act
-    result = domain_blocker.is_domain_blocked('user@example.com')
+    result = await domain_blocker.is_domain_blocked('user@example.com')
 
     # Assert
     assert result is False
