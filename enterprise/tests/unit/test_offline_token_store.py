@@ -1,9 +1,6 @@
 import pytest
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
 from storage.offline_token_store import OfflineTokenStore
 from storage.stored_offline_token import StoredOfflineToken
-from openhands.core.config.openhands_config import OpenHandsConfig
 
 
 @pytest.fixture
@@ -23,8 +20,11 @@ async def test_store_token_new_record(async_session_maker, mock_config):
     # Verify - use a new session to query
     async with async_session_maker() as session:
         from sqlalchemy import select
+
         result = await session.execute(
-            select(StoredOfflineToken).where(StoredOfflineToken.user_id == 'test_user_id')
+            select(StoredOfflineToken).where(
+                StoredOfflineToken.user_id == 'test_user_id'
+            )
         )
         record = result.scalar_one_or_none()
         assert record is not None
@@ -36,7 +36,7 @@ async def test_store_token_new_record(async_session_maker, mock_config):
 async def test_store_token_existing_record(async_session_maker, mock_config):
     # Setup - create existing record
     token_store = OfflineTokenStore('test_user_id', async_session_maker, mock_config)
-    
+
     async with async_session_maker() as session:
         session.add(
             StoredOfflineToken(user_id='test_user_id', offline_token='old_token')
@@ -51,8 +51,11 @@ async def test_store_token_existing_record(async_session_maker, mock_config):
     # Verify
     async with async_session_maker() as session:
         from sqlalchemy import select
+
         result = await session.execute(
-            select(StoredOfflineToken).where(StoredOfflineToken.user_id == 'test_user_id')
+            select(StoredOfflineToken).where(
+                StoredOfflineToken.user_id == 'test_user_id'
+            )
         )
         record = result.scalar_one_or_none()
         assert record is not None
@@ -63,10 +66,12 @@ async def test_store_token_existing_record(async_session_maker, mock_config):
 async def test_load_token_existing(async_session_maker, mock_config):
     # Setup - create existing record
     token_store = OfflineTokenStore('test_user_id', async_session_maker, mock_config)
-    
+
     async with async_session_maker() as session:
         session.add(
-            StoredOfflineToken(user_id='test_user_id', offline_token='test_offline_token')
+            StoredOfflineToken(
+                user_id='test_user_id', offline_token='test_offline_token'
+            )
         )
         await session.commit()
 
@@ -80,7 +85,9 @@ async def test_load_token_existing(async_session_maker, mock_config):
 @pytest.mark.asyncio
 async def test_load_token_not_found(async_session_maker, mock_config):
     # Setup
-    token_store = OfflineTokenStore('nonexistent_user', async_session_maker, mock_config)
+    token_store = OfflineTokenStore(
+        'nonexistent_user', async_session_maker, mock_config
+    )
 
     # Execute
     result = await token_store.load_token()

@@ -8,7 +8,11 @@ from server.verified_models.verified_model_service import (
     StoredVerifiedModel,  # noqa: F401
 )
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import sessionmaker
 from storage.base import Base
 
