@@ -54,9 +54,8 @@ class OrgStore:
         """Get organization by ID (async version)."""
         async with a_session_maker() as session:
             from sqlalchemy import select
-            result = await session.execute(
-                select(Org).filter(Org.id == org_id)
-            )
+
+            result = await session.execute(select(Org).filter(Org.id == org_id))
             org = result.scalars().first()
         return OrgStore._validate_org_version(org)
 

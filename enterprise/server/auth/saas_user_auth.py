@@ -6,7 +6,6 @@ import jwt
 from fastapi import Request
 from keycloak.exceptions import KeycloakError
 from pydantic import SecretStr
-from sqlalchemy import delete, select
 from server.auth.auth_error import (
     AuthError,
     BearerTokenError,
@@ -19,6 +18,7 @@ from server.auth.token_manager import TokenManager
 from server.config import get_config
 from server.logger import logger
 from server.rate_limit import RateLimiter, create_redis_rate_limiter
+from sqlalchemy import delete, select
 from storage.api_key_store import ApiKeyStore
 from storage.auth_tokens import AuthTokens
 from storage.database import a_session_maker

@@ -154,9 +154,7 @@ class SaasSettingsStore(SettingsStore):
             if not org_member or not org_member.llm_api_key:
                 return None
 
-            result = await session.execute(
-                select(Org).filter(Org.id == org_id)
-            )
+            result = await session.execute(select(Org).filter(Org.id == org_id))
             org = result.scalars().first()
             if not org:
                 logger.error(
