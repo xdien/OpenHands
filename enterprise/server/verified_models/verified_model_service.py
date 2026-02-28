@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from storage.base import Base
 
-from enterprise.server.verified_models.verified_model_models import (
+from server.verified_models.verified_model_models import (
     VerifiedModel,
     VerifiedModelPage,
 )
