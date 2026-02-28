@@ -6,6 +6,7 @@ import jwt
 from fastapi import Request
 from keycloak.exceptions import KeycloakError
 from pydantic import SecretStr
+from sqlalchemy import delete, select
 from server.auth.auth_error import (
     AuthError,
     BearerTokenError,
@@ -20,7 +21,7 @@ from server.logger import logger
 from server.rate_limit import RateLimiter, create_redis_rate_limiter
 from storage.api_key_store import ApiKeyStore
 from storage.auth_tokens import AuthTokens
-from storage.database import session_maker
+from storage.database import a_session_maker
 from storage.saas_secrets_store import SaasSecretsStore
 from storage.saas_settings_store import SaasSettingsStore
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
@@ -124,7 +125,7 @@ class SaasUserAuth(UserAuth):
         if secrets_store:
             return secrets_store
         user_id = await self.get_user_id()
-        secrets_store = SaasSecretsStore(user_id, session_maker, get_config())
+        secrets_store = SaasSecretsStore(user_id, get_config())
         self.secrets_store = secrets_store
         return secrets_store
 
@@ -161,12 +162,13 @@ class SaasUserAuth(UserAuth):
 
         try:
             # TODO: I think we can do this in a single request if we refactor
-            with session_maker() as session:
-                tokens = (
-                    session.query(AuthTokens)
-                    .where(AuthTokens.keycloak_user_id == self.user_id)
-                    .all()
+            async with a_session_maker() as session:
+                result = await session.execute(
+                    select(AuthTokens).where(
+                        AuthTokens.keycloak_user_id == self.user_id
+                    )
                 )
+                tokens = result.scalars().all()
 
             for token in tokens:
                 idp_type = ProviderType(token.identity_provider)
@@ -192,11 +194,11 @@ class SaasUserAuth(UserAuth):
                             'idp_type': token.identity_provider,
                         },
                     )
-                    with session_maker() as session:
-                        session.query(AuthTokens).filter(
-                            AuthTokens.id == token.id
-                        ).delete()
-                        session.commit()
+                    async with a_session_maker() as session:
+                        await session.execute(
+                            delete(AuthTokens).where(AuthTokens.id == token.id)
+                        )
+                        await session.commit()
                     raise
 
             self.provider_tokens = MappingProxyType(provider_tokens)
@@ -210,7 +212,7 @@ class SaasUserAuth(UserAuth):
         if settings_store:
             return settings_store
         user_id = await self.get_user_id()
-        settings_store = SaasSettingsStore(user_id, session_maker, get_config())
+        settings_store = SaasSettingsStore(user_id, get_config())
         self.settings_store = settings_store
         return settings_store
 
