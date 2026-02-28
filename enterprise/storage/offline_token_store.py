@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from storage.database import a_session_maker
 from storage.stored_offline_token import StoredOfflineToken
@@ -20,11 +21,12 @@ class OfflineTokenStore:
     async def store_token(self, offline_token: str) -> None:
         """Store an offline token in the database."""
         async with self.a_session_maker() as session:
-            token_record = (
-                session.query(StoredOfflineToken)
-                .filter(StoredOfflineToken.user_id == self.user_id)
-                .first()
+            result = await session.execute(
+                select(StoredOfflineToken).where(
+                    StoredOfflineToken.user_id == self.user_id
+                )
             )
+            token_record = result.scalar_one_or_none()
 
             if token_record:
                 token_record.offline_token = offline_token
@@ -38,11 +40,12 @@ class OfflineTokenStore:
     async def load_token(self) -> str | None:
         """Load an offline token from the database."""
         async with self.a_session_maker() as session:
-            token_record = (
-                session.query(StoredOfflineToken)
-                .filter(StoredOfflineToken.user_id == self.user_id)
-                .first()
+            result = await session.execute(
+                select(StoredOfflineToken).where(
+                    StoredOfflineToken.user_id == self.user_id
+                )
             )
+            token_record = result.scalar_one_or_none()
 
             if not token_record:
                 return None
