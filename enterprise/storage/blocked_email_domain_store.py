@@ -1,8 +1,9 @@
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +24,7 @@ class BlockedEmailDomainStore:
         Returns:
             True if the domain is blocked, False otherwise
         """
-        logger.info("trace_is_domain_blocked_1")
+        logger.info('trace_is_domain_blocked_1')
         with self.session_maker() as session:
             # SQL query that handles both TLD patterns and full domain patterns
             # TLD patterns (starting with '.'): check if domain ends with the pattern
@@ -44,7 +45,7 @@ class BlockedEmailDomainStore:
                         ))
                 )
             """)
-            logger.info("trace_is_domain_blocked_2")
+            logger.info('trace_is_domain_blocked_2')
             result = session.execute(query, {'domain': domain}).scalar()
-            logger.info("trace_is_domain_blocked_3")
+            logger.info('trace_is_domain_blocked_3')
             return bool(result)
