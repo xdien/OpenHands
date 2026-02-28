@@ -345,4 +345,4 @@ class GitlabWebhookStore:
         Returns:
             An instance of GitlabWebhookStore
         """
-        return GitlabWebhookStore(a_session_maker)
+        return GitlabWebhookStore()

@@ -36,9 +36,9 @@ async def async_session_maker(async_engine):
 
 
 @pytest.fixture
-async def webhook_store(async_session_maker):
+async def webhook_store():
     """Create a GitlabWebhookStore instance for testing."""
-    return GitlabWebhookStore(a_session_maker=async_session_maker)
+    return GitlabWebhookStore()
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ class TestGetWebhookByResourceOnly:
 
     @pytest.mark.asyncio
     async def test_get_project_webhook_by_resource_only(
-        self, webhook_store, async_session_maker, sample_webhooks
+        self, webhook_store, sample_webhooks
     ):
         """Test getting a project webhook by resource ID without user_id filter."""
         # Arrange

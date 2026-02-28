@@ -31,7 +31,6 @@ from openhands.utils.llm import is_openhands_model
 class SaasSettingsStore(SettingsStore):
     user_id: str
     config: OpenHandsConfig
-    a_session_maker = a_session_maker
     ENCRYPT_VALUES = ['llm_api_key', 'llm_api_key_for_byor', 'search_api_key']
 
     async def _get_user_settings_by_keycloak_id_async(
@@ -60,7 +59,7 @@ class SaasSettingsStore(SettingsStore):
             return result.scalars().first()
         else:
             # Create new session
-            async with self.a_session_maker() as new_session:
+            async with a_session_maker() as new_session:
                 result = await new_session.execute(
                     select(UserSettings).filter(
                         UserSettings.keycloak_user_id == keycloak_user_id
@@ -121,7 +120,7 @@ class SaasSettingsStore(SettingsStore):
         return settings
 
     async def store(self, item: Settings):
-        async with self.a_session_maker() as session:
+        async with a_session_maker() as session:
             if not item:
                 return None
             result = await session.execute(
@@ -134,7 +133,7 @@ class SaasSettingsStore(SettingsStore):
             if not user:
                 # Check if we need to migrate from user_settings
                 user_settings = None
-                async with self.a_session_maker() as new_session:
+                async with a_session_maker() as new_session:
                     user_settings = await self._get_user_settings_by_keycloak_id_async(
                         self.user_id, new_session
                     )
