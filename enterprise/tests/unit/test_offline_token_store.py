@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from server.auth.token_manager import TokenManager
+from sqlalchemy.ext.asyncio import AsyncSession
 from storage.offline_token_store import OfflineTokenStore
 from storage.stored_offline_token import StoredOfflineToken
 
