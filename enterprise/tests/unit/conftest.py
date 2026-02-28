@@ -8,6 +8,7 @@ from server.verified_models.verified_model_service import (
     StoredVerifiedModel,  # noqa: F401
 )
 from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import sessionmaker
 from storage.base import Base
 
@@ -40,6 +41,27 @@ def engine():
 @pytest.fixture
 def session_maker(engine):
     return sessionmaker(bind=engine)
+
+
+@pytest.fixture
+def async_engine():
+    """Create an async in-memory SQLite engine for testing."""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    return engine
+
+
+@pytest.fixture
+async def async_session_maker(async_engine):
+    """Create an async session maker bound to the async engine."""
+    async_session_maker = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    # Create all tables
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    return async_session_maker
 
 
 def add_minimal_fixtures(session_maker):
