@@ -25,7 +25,6 @@ class BlockedEmailDomainStore:
         Returns:
             True if the domain is blocked, False otherwise
         """
-        logger.info('trace_is_domain_blocked_1')
         async with self.a_session_maker() as session:
             # SQL query that handles both TLD patterns and full domain patterns
             # TLD patterns (starting with '.'): check if domain ends with it (case-insensitive)
@@ -46,7 +45,5 @@ class BlockedEmailDomainStore:
                         ))
                 )
             """)
-            logger.info('trace_is_domain_blocked_2')
             result = await session.execute(query, {'domain': domain})
-            logger.info('trace_is_domain_blocked_3')
             return bool(result.scalar())
