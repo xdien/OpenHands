@@ -32,6 +32,10 @@ from server.routes.org_models import (
     OrphanedUserError,
     RoleNotFoundError,
 )
+from server.services.org_llm_settings_service import (
+    OrgLLMSettingsService,
+    OrgLLMSettingsServiceInjector,
+)
 from server.services.org_member_service import OrgMemberService
 from storage.org_service import OrgService
 from storage.user_store import UserStore
@@ -41,6 +45,10 @@ from openhands.server.user_auth import get_user_id
 
 # Initialize API router
 org_router = APIRouter(prefix='/api/organizations', tags=['Orgs'])
+
+# Create injector instance and dependency for LLM settings
+_org_llm_settings_injector = OrgLLMSettingsServiceInjector()
+org_llm_settings_service_dependency = Depends(_org_llm_settings_injector.depends)
 
 
 @org_router.get('', response_model=OrgPage)
@@ -203,15 +211,22 @@ async def create_org(
         )
 
 
-@org_router.get('/llm', response_model=OrgLLMSettingsResponse)
+@org_router.get(
+    '/llm',
+    response_model=OrgLLMSettingsResponse,
+    dependencies=[Depends(require_permission(Permission.VIEW_LLM_SETTINGS))],
+)
 async def get_org_llm_settings(
-    user_id: str = Depends(require_permission(Permission.VIEW_LLM_SETTINGS)),
+    service: OrgLLMSettingsService = org_llm_settings_service_dependency,
 ) -> OrgLLMSettingsResponse:
     """Get LLM settings for the user's current organization.
 
     This endpoint retrieves the LLM configuration settings for the
     authenticated user's current organization. All organization members
     can view these settings.
+
+    Args:
+        service: OrgLLMSettingsService (injected by dependency)
 
     Returns:
         OrgLLMSettingsResponse: The organization's LLM settings
@@ -222,14 +237,8 @@ async def get_org_llm_settings(
         HTTPException: 404 if current organization not found
         HTTPException: 500 if retrieval fails
     """
-    logger.info(
-        'Getting organization LLM settings',
-        extra={'user_id': user_id},
-    )
-
     try:
-        org = await OrgService.get_llm_settings_for_current_org(user_id)
-        return OrgLLMSettingsResponse.from_org(org)
+        return await service.get_org_llm_settings()
     except OrgNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -238,7 +247,7 @@ async def get_org_llm_settings(
     except Exception as e:
         logger.exception(
             'Error getting organization LLM settings',
-            extra={'user_id': user_id, 'error': str(e)},
+            extra={'error': str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -246,10 +255,14 @@ async def get_org_llm_settings(
         )
 
 
-@org_router.post('/llm', response_model=OrgLLMSettingsResponse)
+@org_router.post(
+    '/llm',
+    response_model=OrgLLMSettingsResponse,
+    dependencies=[Depends(require_permission(Permission.EDIT_LLM_SETTINGS))],
+)
 async def update_org_llm_settings(
     settings: OrgLLMSettingsUpdate,
-    user_id: str = Depends(require_permission(Permission.EDIT_LLM_SETTINGS)),
+    service: OrgLLMSettingsService = org_llm_settings_service_dependency,
 ) -> OrgLLMSettingsResponse:
     """Update LLM settings for the user's current organization.
 
@@ -259,6 +272,7 @@ async def update_org_llm_settings(
 
     Args:
         settings: The LLM settings to update (only non-None fields are updated)
+        service: OrgLLMSettingsService (injected by dependency)
 
     Returns:
         OrgLLMSettingsResponse: The updated organization's LLM settings
@@ -269,14 +283,8 @@ async def update_org_llm_settings(
         HTTPException: 404 if current organization not found
         HTTPException: 500 if update fails
     """
-    logger.info(
-        'Updating organization LLM settings',
-        extra={'user_id': user_id},
-    )
-
     try:
-        org = await OrgService.update_llm_settings_for_current_org(user_id, settings)
-        return OrgLLMSettingsResponse.from_org(org)
+        return await service.update_org_llm_settings(settings)
     except OrgNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -285,7 +293,7 @@ async def update_org_llm_settings(
     except OrgDatabaseError as e:
         logger.error(
             'Database error updating LLM settings',
-            extra={'user_id': user_id, 'error': str(e)},
+            extra={'error': str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -294,7 +302,7 @@ async def update_org_llm_settings(
     except Exception as e:
         logger.exception(
             'Error updating organization LLM settings',
-            extra={'user_id': user_id, 'error': str(e)},
+            extra={'error': str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
