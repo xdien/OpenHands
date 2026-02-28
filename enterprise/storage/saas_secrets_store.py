@@ -20,7 +20,6 @@ from openhands.storage.secrets.secrets_store import SecretsStore
 class SaasSecretsStore(SecretsStore):
     user_id: str
     config: OpenHandsConfig
-    a_session_maker = a_session_maker
 
     async def load(self) -> Secrets | None:
         if not self.user_id:
@@ -28,7 +27,7 @@ class SaasSecretsStore(SecretsStore):
         user = await UserStore.get_user_by_id_async(self.user_id)
         org_id = user.current_org_id if user else None
 
-        async with self.a_session_maker() as session:
+        async with a_session_maker() as session:
             # Fetch all secrets for the given user ID
             query = select(StoredCustomSecrets).filter(
                 StoredCustomSecrets.keycloak_user_id == self.user_id
@@ -56,7 +55,7 @@ class SaasSecretsStore(SecretsStore):
         user = await UserStore.get_user_by_id_async(self.user_id)
         org_id = user.current_org_id
 
-        async with self.a_session_maker() as session:
+        async with a_session_maker() as session:
             # Incoming secrets are always the most updated ones
             # Delete all existing records and override with incoming ones
             await session.execute(

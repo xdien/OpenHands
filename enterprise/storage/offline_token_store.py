@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from storage.database import a_session_maker
 from storage.stored_offline_token import StoredOfflineToken
 
@@ -15,12 +13,11 @@ from openhands.core.logger import openhands_logger as logger
 @dataclass
 class OfflineTokenStore:
     user_id: str
-    a_session_maker: Callable[[], AsyncSession]
     config: OpenHandsConfig
 
     async def store_token(self, offline_token: str) -> None:
         """Store an offline token in the database."""
-        async with self.a_session_maker() as session:
+        async with a_session_maker() as session:
             result = await session.execute(
                 select(StoredOfflineToken).where(
                     StoredOfflineToken.user_id == self.user_id
@@ -39,7 +36,7 @@ class OfflineTokenStore:
 
     async def load_token(self) -> str | None:
         """Load an offline token from the database."""
-        async with self.a_session_maker() as session:
+        async with a_session_maker() as session:
             result = await session.execute(
                 select(StoredOfflineToken).where(
                     StoredOfflineToken.user_id == self.user_id
@@ -60,4 +57,4 @@ class OfflineTokenStore:
         logger.debug(f'offline_token_store.get_instance::{user_id}')
         if user_id:
             user_id = str(user_id)
-        return OfflineTokenStore(user_id, a_session_maker, config)
+        return OfflineTokenStore(user_id, config)

@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import select
 from storage.offline_token_store import OfflineTokenStore
 from storage.stored_offline_token import StoredOfflineToken
 
@@ -11,7 +12,7 @@ def mock_config():
 @pytest.mark.asyncio
 async def test_store_token_new_record(async_session_maker, mock_config):
     # Setup
-    token_store = OfflineTokenStore('test_user_id', async_session_maker, mock_config)
+    token_store = OfflineTokenStore('test_user_id', mock_config)
     test_token = 'test_offline_token'
 
     # Execute
@@ -19,8 +20,6 @@ async def test_store_token_new_record(async_session_maker, mock_config):
 
     # Verify - use a new session to query
     async with async_session_maker() as session:
-        from sqlalchemy import select
-
         result = await session.execute(
             select(StoredOfflineToken).where(
                 StoredOfflineToken.user_id == 'test_user_id'
@@ -35,7 +34,7 @@ async def test_store_token_new_record(async_session_maker, mock_config):
 @pytest.mark.asyncio
 async def test_store_token_existing_record(async_session_maker, mock_config):
     # Setup - create existing record
-    token_store = OfflineTokenStore('test_user_id', async_session_maker, mock_config)
+    token_store = OfflineTokenStore('test_user_id', mock_config)
 
     async with async_session_maker() as session:
         session.add(
@@ -65,7 +64,7 @@ async def test_store_token_existing_record(async_session_maker, mock_config):
 @pytest.mark.asyncio
 async def test_load_token_existing(async_session_maker, mock_config):
     # Setup - create existing record
-    token_store = OfflineTokenStore('test_user_id', async_session_maker, mock_config)
+    token_store = OfflineTokenStore('test_user_id', mock_config)
 
     async with async_session_maker() as session:
         session.add(

@@ -59,7 +59,6 @@ def auth_token_store(mock_session_maker):
     return AuthTokenStore(
         keycloak_user_id='test-user-123',
         idp=ProviderType.GITHUB,
-        a_session_maker=mock_session_maker,
     )
 
 
@@ -169,7 +168,7 @@ class TestLoadTokensFastPath:
 
     @pytest.mark.asyncio
     async def test_fast_path_no_refresh_callback_provided(
-        self, auth_token_store, mock_session_maker, mock_session
+        self, auth_token_store, mock_session
     ):
         """Test fast path returns existing tokens when no refresh callback is provided."""
         current_time = int(time.time())
@@ -213,12 +212,9 @@ class TestLoadTokensSlowPath:
         mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.commit = AsyncMock()
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         async def mock_refresh(
@@ -274,12 +270,9 @@ class TestLoadTokensSlowPath:
         mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.commit = AsyncMock()
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         refresh_called = [False]
@@ -325,12 +318,9 @@ class TestLoadTokensSlowPath:
         mock_result.scalars.return_value.one_or_none.side_effect = get_token
         mock_session.execute = AsyncMock(return_value=mock_result)
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         async def mock_refresh(*args) -> Dict[str, str | int]:
@@ -378,12 +368,9 @@ class TestLoadTokensLockTimeout:
 
         mock_session.execute = execute_side_effect
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         async def mock_refresh(*args) -> Dict[str, str | int]:
@@ -426,12 +413,9 @@ class TestLoadTokensLockTimeout:
 
         mock_session.execute = execute_side_effect
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         async def mock_refresh(*args) -> Dict[str, str | int]:
@@ -470,12 +454,9 @@ class TestLoadTokensRefreshCallbackBehavior:
         mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.commit = AsyncMock()
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         async def mock_refresh_returns_none(
@@ -506,12 +487,9 @@ class TestStoreTokens:
         mock_session.add = MagicMock()
         mock_session.commit = AsyncMock()
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         await auth_store.store_tokens(
@@ -535,12 +513,9 @@ class TestStoreTokens:
         mock_session.execute = AsyncMock(return_value=mock_result)
         mock_session.commit = AsyncMock()
 
-        mock_session_maker = create_mock_session_maker(mock_session)
-
         auth_store = AuthTokenStore(
             keycloak_user_id='test-user-123',
             idp=ProviderType.GITHUB,
-            a_session_maker=mock_session_maker,
         )
 
         await auth_store.store_tokens(
@@ -644,7 +619,6 @@ class TestIdentityProviderValue:
             store = AuthTokenStore(
                 keycloak_user_id='test-user',
                 idp=provider,
-                a_session_maker=MagicMock(),
             )
             assert store.identity_provider_value == provider.value
 
