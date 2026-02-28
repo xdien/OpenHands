@@ -14,9 +14,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import sessionmaker
-from storage.base import Base
 
 # Anything not loaded here may not have a table created for it.
+from storage.base import Base
 from storage.billing_session import BillingSession
 from storage.conversation_work import ConversationWork
 from storage.device_code import DeviceCode  # noqa: F401
