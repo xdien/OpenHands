@@ -12,7 +12,11 @@ from openhands.core.config.openhands_config import OpenHandsConfig
 
 @pytest.fixture
 def mock_session():
+    """Create an async mock session with proper sync query chain."""
     session = AsyncMock(spec=AsyncSession)
+    # Set up the query chain to return sync values, not AsyncMocks
+    mock_query = MagicMock()
+    session.query.return_value = mock_query
     return session
 
 
@@ -45,8 +49,8 @@ def token_manager():
 @pytest.mark.asyncio
 async def test_store_token_new_record(token_store, mock_session):
     # Setup
-    mock_session.query.return_value.filter.return_value.first.return_value = None
     test_token = 'test_offline_token'
+    mock_session.query.return_value.filter.return_value.first.return_value = None
 
     # Execute
     await token_store.store_token(test_token)
