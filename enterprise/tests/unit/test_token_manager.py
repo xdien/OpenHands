@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from keycloak.exceptions import KeycloakConnectionError, KeycloakError
 from server.auth.token_manager import TokenManager
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from storage.offline_token_store import OfflineTokenStore
 from storage.stored_offline_token import StoredOfflineToken
 
@@ -12,16 +12,16 @@ from openhands.core.config.openhands_config import OpenHandsConfig
 
 @pytest.fixture
 def mock_session():
-    session = MagicMock(spec=Session)
+    session = AsyncMock(spec=AsyncSession)
     return session
 
 
 @pytest.fixture
-def mock_session_maker(mock_session):
-    session_maker = MagicMock()
-    session_maker.return_value.__enter__.return_value = mock_session
-    session_maker.return_value.__exit__.return_value = None
-    return session_maker
+def mock_async_session_maker(mock_session):
+    async_session_maker = AsyncMock()
+    async_session_maker.return_value.__aenter__.return_value = mock_session
+    async_session_maker.return_value.__aexit__.return_value = None
+    return async_session_maker
 
 
 @pytest.fixture
@@ -30,8 +30,8 @@ def mock_config():
 
 
 @pytest.fixture
-def token_store(mock_session_maker, mock_config):
-    return OfflineTokenStore('test_user_id', mock_session_maker, mock_config)
+def token_store(mock_async_session_maker, mock_config):
+    return OfflineTokenStore('test_user_id', mock_async_session_maker, mock_config)
 
 
 @pytest.fixture
