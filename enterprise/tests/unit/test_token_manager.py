@@ -12,11 +12,12 @@ from openhands.core.config.openhands_config import OpenHandsConfig
 
 @pytest.fixture
 def mock_session():
-    """Create an async mock session with proper sync query chain."""
+    """Create an async mock session with proper async query chain."""
     session = AsyncMock(spec=AsyncSession)
-    # Set up the query chain to return sync values, not AsyncMocks
-    mock_query = MagicMock()
-    session.query.return_value = mock_query
+    # Set up the query chain - first() returns an awaitable in async SQLAlchemy
+    mock_filter = MagicMock()
+    mock_filter.first.return_value = None  # This needs to be set in tests
+    session.query.return_value.filter.return_value = mock_filter
     return session
 
 
