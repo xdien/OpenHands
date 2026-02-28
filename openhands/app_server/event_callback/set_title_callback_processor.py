@@ -80,8 +80,7 @@ class SetTitleCallbackProcessor(EventCallbackProcessor):
                     title = response.json().get('title')
                     if title:
                         break
-                if delay_s:
-                    await asyncio.sleep(delay_s)
+                await asyncio.sleep(delay_s)
 
             if not title:
                 _logger.info(
