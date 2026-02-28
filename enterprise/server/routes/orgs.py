@@ -32,6 +32,10 @@ from server.routes.org_models import (
     OrphanedUserError,
     RoleNotFoundError,
 )
+from server.services.org_app_settings_service import (
+    OrgAppSettingsService,
+    OrgAppSettingsServiceInjector,
+)
 from server.services.org_member_service import OrgMemberService
 from storage.org_service import OrgService
 from storage.user_store import UserStore
@@ -41,6 +45,10 @@ from openhands.server.user_auth import get_user_id
 
 # Initialize API router
 org_router = APIRouter(prefix='/api/organizations', tags=['Orgs'])
+
+# Create injector instance and dependency at module level
+_org_app_settings_injector = OrgAppSettingsServiceInjector()
+org_app_settings_service_dependency = Depends(_org_app_settings_injector.depends)
 
 
 @org_router.get('', response_model=OrgPage)
@@ -203,9 +211,13 @@ async def create_org(
         )
 
 
-@org_router.get('/app', response_model=OrgAppSettingsResponse)
+@org_router.get(
+    '/app',
+    response_model=OrgAppSettingsResponse,
+    dependencies=[Depends(require_permission(Permission.MANAGE_APPLICATION_SETTINGS))],
+)
 async def get_org_app_settings(
-    user_id: str = Depends(require_permission(Permission.MANAGE_APPLICATION_SETTINGS)),
+    service: OrgAppSettingsService = org_app_settings_service_dependency,
 ) -> OrgAppSettingsResponse:
     """Get organization app settings for the user's current organization.
 
@@ -214,7 +226,7 @@ async def get_org_app_settings(
     which is granted to all organization members (member, admin, and owner roles).
 
     Args:
-        user_id: Authenticated user ID (injected by require_permission dependency)
+        service: OrgAppSettingsService (injected by dependency)
 
     Returns:
         OrgAppSettingsResponse: The organization app settings
@@ -224,14 +236,8 @@ async def get_org_app_settings(
         HTTPException: 403 if user lacks MANAGE_APPLICATION_SETTINGS permission
         HTTPException: 404 if current organization not found
     """
-    logger.info(
-        'Retrieving organization app settings',
-        extra={'user_id': user_id},
-    )
-
     try:
-        org = OrgService.get_current_org_app_settings(user_id)
-        return OrgAppSettingsResponse.from_org(org)
+        return await service.get_org_app_settings()
     except OrgNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -240,7 +246,7 @@ async def get_org_app_settings(
     except Exception as e:
         logger.exception(
             'Unexpected error retrieving organization app settings',
-            extra={'user_id': user_id, 'error': str(e)},
+            extra={'error': str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -248,10 +254,14 @@ async def get_org_app_settings(
         )
 
 
-@org_router.post('/app', response_model=OrgAppSettingsResponse)
+@org_router.post(
+    '/app',
+    response_model=OrgAppSettingsResponse,
+    dependencies=[Depends(require_permission(Permission.MANAGE_APPLICATION_SETTINGS))],
+)
 async def update_org_app_settings(
     update_data: OrgAppSettingsUpdate,
-    user_id: str = Depends(require_permission(Permission.MANAGE_APPLICATION_SETTINGS)),
+    service: OrgAppSettingsService = org_app_settings_service_dependency,
 ) -> OrgAppSettingsResponse:
     """Update organization app settings for the user's current organization.
 
@@ -261,7 +271,7 @@ async def update_org_app_settings(
 
     Args:
         update_data: App settings update data
-        user_id: Authenticated user ID (injected by require_permission dependency)
+        service: OrgAppSettingsService (injected by dependency)
 
     Returns:
         OrgAppSettingsResponse: The updated organization app settings
@@ -273,32 +283,17 @@ async def update_org_app_settings(
         HTTPException: 422 if validation errors occur (handled by FastAPI)
         HTTPException: 500 if update fails
     """
-    logger.info(
-        'Updating organization app settings',
-        extra={'user_id': user_id},
-    )
-
     try:
-        updated_org = OrgService.update_current_org_app_settings(user_id, update_data)
-        return OrgAppSettingsResponse.from_org(updated_org)
+        return await service.update_org_app_settings(update_data)
     except OrgNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='Current organization not found',
         )
-    except OrgDatabaseError:
-        logger.error(
-            'Database operation failed',
-            extra={'user_id': user_id},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail='Failed to update organization app settings',
-        )
     except Exception as e:
         logger.exception(
             'Unexpected error updating organization app settings',
-            extra={'user_id': user_id, 'error': str(e)},
+            extra={'error': str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

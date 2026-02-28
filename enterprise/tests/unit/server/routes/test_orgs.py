@@ -24,6 +24,7 @@ with patch('storage.database.engine', create=True), patch(
         LastOwnerError,
         LiteLLMIntegrationError,
         MeResponse,
+        OrgAppSettingsResponse,
         OrgAppSettingsUpdate,
         OrgAuthorizationError,
         OrgDatabaseError,
@@ -3450,10 +3451,7 @@ async def test_get_org_app_settings_success(
     THEN: App settings are returned with 200 status
     """
     # Arrange
-    org_id = uuid.uuid4()
-    mock_org = Org(
-        id=org_id,
-        name='Test Organization',
+    mock_response = OrgAppSettingsResponse(
         enable_proactive_conversation_starters=True,
         enable_solvability_analysis=False,
         max_budget_per_task=10.0,
@@ -3465,8 +3463,8 @@ async def test_get_org_app_settings_success(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.get_current_org_app_settings',
-            return_value=mock_org,
+            'server.routes.orgs.OrgAppSettingsService.get_org_app_settings',
+            AsyncMock(return_value=mock_response),
         ),
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3492,11 +3490,9 @@ async def test_get_org_app_settings_with_null_values(
     THEN: Default values are returned where applicable
     """
     # Arrange
-    org_id = uuid.uuid4()
-    mock_org = Org(
-        id=org_id,
-        name='Test Organization',
-        enable_proactive_conversation_starters=None,
+    # OrgAppSettingsResponse.from_org() handles defaults, so we test the response model
+    mock_response = OrgAppSettingsResponse(
+        enable_proactive_conversation_starters=True,  # Default when None in Org
         enable_solvability_analysis=None,
         max_budget_per_task=None,
     )
@@ -3507,8 +3503,8 @@ async def test_get_org_app_settings_with_null_values(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.get_current_org_app_settings',
-            return_value=mock_org,
+            'server.routes.orgs.OrgAppSettingsService.get_org_app_settings',
+            AsyncMock(return_value=mock_response),
         ),
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3541,8 +3537,8 @@ async def test_get_org_app_settings_not_found(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.get_current_org_app_settings',
-            side_effect=OrgNotFoundError('current'),
+            'server.routes.orgs.OrgAppSettingsService.get_org_app_settings',
+            AsyncMock(side_effect=OrgNotFoundError('current')),
         ),
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3587,10 +3583,7 @@ async def test_update_org_app_settings_success(
     THEN: Updated app settings are returned with 200 status
     """
     # Arrange
-    org_id = uuid.uuid4()
-    updated_org = Org(
-        id=org_id,
-        name='Test Organization',
+    mock_response = OrgAppSettingsResponse(
         enable_proactive_conversation_starters=False,
         enable_solvability_analysis=True,
         max_budget_per_task=25.0,
@@ -3602,8 +3595,8 @@ async def test_update_org_app_settings_success(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.update_current_org_app_settings',
-            return_value=updated_org,
+            'server.routes.orgs.OrgAppSettingsService.update_org_app_settings',
+            AsyncMock(return_value=mock_response),
         ) as mock_update,
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3637,10 +3630,7 @@ async def test_update_org_app_settings_partial_update(
     THEN: Only specified fields are updated
     """
     # Arrange
-    org_id = uuid.uuid4()
-    updated_org = Org(
-        id=org_id,
-        name='Test Organization',
+    mock_response = OrgAppSettingsResponse(
         enable_proactive_conversation_starters=False,
         enable_solvability_analysis=True,
         max_budget_per_task=10.0,  # Unchanged
@@ -3652,8 +3642,8 @@ async def test_update_org_app_settings_partial_update(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.update_current_org_app_settings',
-            return_value=updated_org,
+            'server.routes.orgs.OrgAppSettingsService.update_org_app_settings',
+            AsyncMock(return_value=mock_response),
         ) as mock_update,
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3669,7 +3659,7 @@ async def test_update_org_app_settings_partial_update(
         mock_update.assert_called_once()
         # Verify the update data only contains the specified field
         call_args = mock_update.call_args
-        update_data = call_args[0][1]  # Second positional argument
+        update_data = call_args[0][0]  # First positional argument (update_data)
         assert isinstance(update_data, OrgAppSettingsUpdate)
 
 
@@ -3683,10 +3673,7 @@ async def test_update_org_app_settings_set_null(
     THEN: The field is set to null successfully
     """
     # Arrange
-    org_id = uuid.uuid4()
-    updated_org = Org(
-        id=org_id,
-        name='Test Organization',
+    mock_response = OrgAppSettingsResponse(
         enable_proactive_conversation_starters=True,
         enable_solvability_analysis=True,
         max_budget_per_task=None,
@@ -3698,8 +3685,8 @@ async def test_update_org_app_settings_set_null(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.update_current_org_app_settings',
-            return_value=updated_org,
+            'server.routes.orgs.OrgAppSettingsService.update_org_app_settings',
+            AsyncMock(return_value=mock_response),
         ),
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3784,8 +3771,8 @@ async def test_update_org_app_settings_not_found(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.update_current_org_app_settings',
-            side_effect=OrgNotFoundError('current'),
+            'server.routes.orgs.OrgAppSettingsService.update_org_app_settings',
+            AsyncMock(side_effect=OrgNotFoundError('current')),
         ),
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3817,8 +3804,8 @@ async def test_update_org_app_settings_database_error(
             AsyncMock(return_value=mock_member_role),
         ),
         patch(
-            'server.routes.orgs.OrgService.update_current_org_app_settings',
-            side_effect=OrgDatabaseError('Database connection failed'),
+            'server.routes.orgs.OrgAppSettingsService.update_org_app_settings',
+            AsyncMock(side_effect=Exception('Database connection failed')),
         ),
     ):
         client = TestClient(mock_app_with_get_user_id)
@@ -3831,7 +3818,7 @@ async def test_update_org_app_settings_database_error(
 
         # Assert
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert 'Failed to update' in response.json()['detail']
+        assert 'unexpected error' in response.json()['detail'].lower()
 
 
 @pytest.mark.asyncio
