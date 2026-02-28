@@ -1,17 +1,18 @@
 import logging
 from dataclasses import dataclass
+from typing import Callable
 
 from sqlalchemy import text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class BlockedEmailDomainStore:
-    session_maker: sessionmaker
+    a_session_maker: Callable[[], AsyncSession]
 
-    def is_domain_blocked(self, domain: str) -> bool:
+    async def is_domain_blocked(self, domain: str) -> bool:
         """Check if a domain is blocked by querying the database directly.
 
         This method uses SQL to efficiently check if the domain matches any blocked pattern:
@@ -25,9 +26,9 @@ class BlockedEmailDomainStore:
             True if the domain is blocked, False otherwise
         """
         logger.info('trace_is_domain_blocked_1')
-        with self.session_maker() as session:
+        async with self.a_session_maker() as session:
             # SQL query that handles both TLD patterns and full domain patterns
-            # TLD patterns (starting with '.'): check if domain ends with the pattern
+            # TLD patterns (starting with '.'): check if domain ends with it (case-insensitive)
             # Full domain patterns: check for exact match or subdomain match
             # All comparisons are case-insensitive using LOWER() to ensure consistent matching
             query = text("""
@@ -46,6 +47,6 @@ class BlockedEmailDomainStore:
                 )
             """)
             logger.info('trace_is_domain_blocked_2')
-            result = session.execute(query, {'domain': domain}).scalar()
+            result = await session.execute(query, {'domain': domain})
             logger.info('trace_is_domain_blocked_3')
-            return bool(result)
+            return bool(result.scalar())
