@@ -686,6 +686,14 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         if model and model.startswith('openhands/'):
             base_url = user.llm_base_url or self.openhands_provider_base_url
 
+        if model and model.startswith('bailian/'):
+            model = f"openai/{model[len('bailian/'):]}"
+            # Cho phép người dùng ghi đè Base URL từ giao diện, nếu rỗng thì mới dùng mặc định
+            if user.llm_base_url and user.llm_base_url.strip():
+                base_url = user.llm_base_url.strip()
+            else:
+                base_url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+
         return LLM(
             model=model,
             base_url=base_url,
