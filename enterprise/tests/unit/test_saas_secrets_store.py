@@ -32,8 +32,9 @@ def mock_user():
 def secrets_store(async_session_maker, mock_config):
     # Inject the test session maker into the store module
     import storage.saas_secrets_store as store_module
+
     store_module.a_session_maker = async_session_maker
-    
+
     store = SaasSecretsStore('user-id', mock_config)
     # Also add it as an attribute for tests that need direct access
     store.a_session_maker = async_session_maker

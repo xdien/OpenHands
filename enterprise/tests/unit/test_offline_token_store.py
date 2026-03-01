@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch, AsyncMock
 from sqlalchemy import select
 from storage.offline_token_store import OfflineTokenStore
 from storage.stored_offline_token import StoredOfflineToken
@@ -14,8 +13,9 @@ def mock_config():
 async def test_store_token_new_record(async_session_maker, mock_config):
     # Setup - inject the test session maker into the store module
     import storage.offline_token_store as store_module
+
     store_module.a_session_maker = async_session_maker
-    
+
     token_store = OfflineTokenStore('test_user_id', mock_config)
     test_token = 'test_offline_token'
 
@@ -39,8 +39,9 @@ async def test_store_token_new_record(async_session_maker, mock_config):
 async def test_store_token_existing_record(async_session_maker, mock_config):
     # Setup - inject the test session maker into the store module
     import storage.offline_token_store as store_module
+
     store_module.a_session_maker = async_session_maker
-    
+
     token_store = OfflineTokenStore('test_user_id', mock_config)
 
     async with async_session_maker() as session:
@@ -72,8 +73,9 @@ async def test_store_token_existing_record(async_session_maker, mock_config):
 async def test_load_token_existing(async_session_maker, mock_config):
     # Setup - inject the test session maker into the store module
     import storage.offline_token_store as store_module
+
     store_module.a_session_maker = async_session_maker
-    
+
     token_store = OfflineTokenStore('test_user_id', mock_config)
 
     async with async_session_maker() as session:
@@ -95,8 +97,9 @@ async def test_load_token_existing(async_session_maker, mock_config):
 async def test_load_token_not_found(async_session_maker, mock_config):
     # Setup - inject the test session maker into the store module
     import storage.offline_token_store as store_module
+
     store_module.a_session_maker = async_session_maker
-    
+
     token_store = OfflineTokenStore('nonexistent_user', mock_config)
 
     # Execute

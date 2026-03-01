@@ -9,7 +9,6 @@ from storage.base import Base
 from storage.gitlab_webhook import GitlabWebhook
 from storage.gitlab_webhook_store import GitlabWebhookStore
 
-
 # Use module-scoped engine to share database across fixtures
 _test_engine = None
 
@@ -18,6 +17,7 @@ _test_engine = None
 def event_loop():
     """Create an instance of the default event loop for each test case."""
     import asyncio
+
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -26,7 +26,7 @@ def event_loop():
 @pytest.fixture(scope='function')
 async def async_engine(event_loop):
     """Create an async SQLite engine for testing.
-    
+
     This fixture creates an in-memory SQLite database and ensures
     all tables are created before tests run.
     """
@@ -57,22 +57,22 @@ async def async_session_maker(async_engine):
 @pytest.fixture
 async def webhook_store(async_session_maker):
     """Create a GitlabWebhookStore instance for testing.
-    
+
     This fixture injects the test's async_session_maker to ensure
     the store uses the same in-memory database as the test fixtures.
     """
     # Import here to avoid circular imports
-    from storage.database import a_session_maker as original_session_maker
-    
+
     store = GitlabWebhookStore()
-    
+
     # Store original to restore later (if needed)
     original = getattr(store, 'a_session_maker', None)
-    
+
     # Inject the test session maker - this needs to replace the module-level import
     import storage.gitlab_webhook_store as store_module
+
     store_module.a_session_maker = async_session_maker
-    
+
     return store
 
 

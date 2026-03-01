@@ -1,9 +1,6 @@
-import sys
 from enum import IntEnum
-from typing import List
 
 from sqlalchemy import (
-    ARRAY,
     Boolean,
     Column,
     DateTime,
@@ -13,12 +10,13 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
-from sqlalchemy.types import TypeDecorator, Text
+from sqlalchemy.types import Text, TypeDecorator
 from storage.base import Base
 
 
 class ArrayAsText(TypeDecorator):
     """Custom type that stores arrays as text in SQLite and as ARRAY in PostgreSQL."""
+
     impl = Text
     cache_ok = True
 
@@ -35,6 +33,7 @@ class ArrayAsText(TypeDecorator):
             return None
         # Value is stored as JSON string
         import json
+
         return json.loads(value)
 
     def process_bind_param(self, value, dialect):
@@ -44,6 +43,7 @@ class ArrayAsText(TypeDecorator):
             return value
         # For SQLite, store as JSON string
         import json
+
         return json.dumps(value)
 
 
