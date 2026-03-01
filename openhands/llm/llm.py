@@ -141,6 +141,15 @@ class LLM(RetryMixin, DebugMixin):
                 f'Rewrote openhands/{model_name} to {self.config.model} with base URL {self.config.base_url}'
             )
 
+        # Handle Bailian provider - rewrite to openai and set base_url
+        if self.config.model.startswith('bailian/'):
+            model_name = self.config.model.removeprefix('bailian/')
+            self.config.model = f'openai/{model_name}'
+            if not self.config.base_url:
+                self.config.base_url = 'https://coding-intl.dashscope.aliyuncs.com/v1'
+            logger.debug(
+                f'Rewrote bailian/{model_name} to {self.config.model} with base URL {self.config.base_url}'
+            )
         features = get_features(self.config.model)
         if features.supports_reasoning_effort:
             # For Gemini models, only map 'low' to optimized thinking budget
