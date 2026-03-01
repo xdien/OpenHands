@@ -8,11 +8,9 @@ from sqlalchemy import (
     DateTime,
     Integer,
     String,
-    Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
-from sqlalchemy.types import Text, TypeDecorator
+from sqlalchemy.types import Text
 from storage.base import Base
 
 
