@@ -144,7 +144,7 @@ class LLM(RetryMixin, DebugMixin):
             model_name = self.config.model.removeprefix('bailian/')
             self.config.model = f'openai/{model_name}'
             if not self.config.base_url:
-                self.config.base_url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+                self.config.base_url = 'https://coding-intl.dashscope.aliyuncs.com/v1'
             logger.debug(
                 f'Rewrote bailian/{model_name} to {self.config.model} with base URL {self.config.base_url}'
             )
