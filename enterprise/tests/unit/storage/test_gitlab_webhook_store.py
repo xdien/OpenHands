@@ -65,9 +65,6 @@ async def webhook_store(async_session_maker):
 
     store = GitlabWebhookStore()
 
-    # Store original to restore later (if needed)
-    original = getattr(store, 'a_session_maker', None)
-
     # Inject the test session maker - this needs to replace the module-level import
     import storage.gitlab_webhook_store as store_module
 
