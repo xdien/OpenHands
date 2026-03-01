@@ -71,6 +71,17 @@ _BARE_MISTRAL_MODELS: set[str] = set(_SDK_MISTRAL)
 DEFAULT_OPENHANDS_MODEL = 'openhands/claude-opus-4-5-20251101'
 
 
+BAILIAN_MODELS = [
+    'bailian/qwen3.5-plus',
+    'bailian/qwen3-max-2026-01-23',
+    'bailian/qwen3-coder-next',
+    'bailian/qwen3-coder-plus',
+    'bailian/MiniMax-M2.5',
+    'bailian/glm-5',
+    'bailian/glm-4.7',
+    'bailian/kimi-k2.5',
+]
+
 # ---------------------------------------------------------------------------
 # Structured API response returned by ``/api/options/models``.
 # ---------------------------------------------------------------------------
@@ -90,6 +101,8 @@ class ModelsResponse(BaseModel):
     verified_models: list[str]
     verified_providers: list[str]
     default_model: str
+
+
 
 
 def is_openhands_model(model: str | None) -> bool:
@@ -256,7 +269,9 @@ def get_supported_llm_models(
             except httpx.HTTPError as e:
                 logger.error(f'Error getting OLLAMA models: {e}')
 
-    openhands_models = get_openhands_models(verified_models)
+    # Use database-backed models if provided (SaaS), otherwise use hardcoded list
+    openhands_models = verified_models if verified_models else OPENHANDS_MODELS
+    model_list = openhands_models + CLARIFAI_MODELS + BAILIAN_MODELS + model_list
 
     # Assign canonical provider prefixes to bare LiteLLM names, then dedupe.
     all_models = (
