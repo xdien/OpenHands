@@ -1,10 +1,7 @@
-import logging
 from dataclasses import dataclass
 
 from sqlalchemy import text
 from storage.database import a_session_maker
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
