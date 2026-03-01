@@ -261,3 +261,4 @@ test-results
 .sessions
 .eval_sessions
 .playwright-mcp/*
+openhands/integrations/**
