@@ -1,5 +1,6 @@
 import sys
 from enum import IntEnum
+from typing import List
 
 from sqlalchemy import (
     ARRAY,
@@ -11,7 +12,39 @@ from sqlalchemy import (
     Text,
     text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY as PG_ARRAY
+from sqlalchemy.types import TypeDecorator, Text
 from storage.base import Base
+
+
+class ArrayAsText(TypeDecorator):
+    """Custom type that stores arrays as text in SQLite and as ARRAY in PostgreSQL."""
+    impl = Text
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(PG_ARRAY(Text))
+        return dialect.type_descriptor(Text)
+
+    def process_result_value(self, value, dialect):
+        if dialect.name == 'postgresql':
+            return value
+        # For SQLite, stored as text, need to parse
+        if value is None:
+            return None
+        # Value is stored as JSON string
+        import json
+        return json.loads(value)
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if dialect.name == 'postgresql':
+            return value
+        # For SQLite, store as JSON string
+        import json
+        return json.dumps(value)
 
 
 class WebhookStatus(IntEnum):
@@ -35,8 +68,8 @@ class GitlabWebhook(Base):  # type: ignore
     webhook_url = Column(String, nullable=True)
     webhook_secret = Column(String, nullable=True)
     webhook_uuid = Column(String, nullable=True)
-    # Use Text for tests (SQLite compatibility) and ARRAY for production (PostgreSQL)
-    scopes = Column(Text if 'pytest' in sys.modules else ARRAY(Text), nullable=True)
+    # Use ArrayAsText for cross-database compatibility (SQLite stores as JSON, PostgreSQL as ARRAY)
+    scopes = Column(ArrayAsText, nullable=True)
     last_synced = Column(
         DateTime,
         server_default=text('CURRENT_TIMESTAMP'),
