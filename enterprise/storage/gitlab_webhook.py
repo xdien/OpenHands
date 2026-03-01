@@ -8,9 +8,9 @@ from sqlalchemy import (
     DateTime,
     Integer,
     String,
+    Text,
     text,
 )
-from sqlalchemy.types import Text
 from storage.base import Base
 
 
