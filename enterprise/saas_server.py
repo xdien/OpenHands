@@ -27,7 +27,6 @@ from server.rate_limit import setup_rate_limit_handler  # noqa: E402
 from server.routes.api_keys import api_router as api_keys_router  # noqa: E402
 from server.routes.auth import api_router, oauth_router  # noqa: E402
 from server.routes.billing import billing_router  # noqa: E402
-from server.routes.debugging import add_debugging_routes  # noqa: E402
 from server.routes.email import api_router as email_router  # noqa: E402
 from server.routes.event_webhook import event_webhook_router  # noqa: E402
 from server.routes.feedback import router as feedback_router  # noqa: E402
@@ -48,14 +47,17 @@ from server.routes.orgs import org_router  # noqa: E402
 from server.routes.readiness import readiness_router  # noqa: E402
 from server.routes.user import saas_user_router  # noqa: E402
 from server.routes.user_app_settings import user_app_settings_router  # noqa: E402
-from server.routes.verified_models import (  # noqa: E402
-    api_router as verified_models_router,
-)
 from server.sharing.shared_conversation_router import (  # noqa: E402
     router as shared_conversation_router,
 )
 from server.sharing.shared_event_router import (  # noqa: E402
     router as shared_event_router,
+)
+from server.verified_models.verified_model_router import (  # noqa: E402
+    api_router as verified_models_router,
+)
+from server.verified_models.verified_model_router import (  # noqa: E402
+    override_llm_models_dependency,
 )
 
 from openhands.server.app import app as base_app  # noqa: E402
@@ -113,12 +115,14 @@ base_app.include_router(org_router)  # Add routes for organization management
 base_app.include_router(
     verified_models_router
 )  # Add routes for verified models management
+
+# Override the default LLM models implementation with SaaS version
+# This must happen after all routers are included
+override_llm_models_dependency(base_app)
+
 base_app.include_router(invitation_router)  # Add routes for org invitation management
 base_app.include_router(invitation_accept_router)  # Add route for accepting invitations
 add_github_proxy_routes(base_app)
-add_debugging_routes(
-    base_app
-)  # Add diagnostic routes for testing and debugging (disabled in production)
 base_app.include_router(slack_router)
 if ENABLE_JIRA:
     base_app.include_router(jira_integration_router)
