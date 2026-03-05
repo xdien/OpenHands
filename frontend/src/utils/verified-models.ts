@@ -6,6 +6,7 @@ export const VERIFIED_PROVIDERS = [
   "mistral",
   "lemonade",
   "clarifai",
+  "bailian",
 ];
 export const VERIFIED_MODELS = [
   "claude-opus-4-6",
@@ -50,6 +51,17 @@ export const VERIFIED_ANTHROPIC_MODELS = [
 // LiteLLM does not return the compatible Mistral models with the provider, so we list them here to set them ourselves
 // (e.g., they return `devstral-small-2505` instead of `mistral/devstral-small-2505`)
 export const VERIFIED_MISTRAL_MODELS = ["devstral-medium-2512"];
+
+export const VERIFIED_BAILIAN_MODELS = [
+  "qwen3.5-plus",
+  "qwen3-max-2026-01-23",
+  "qwen3-coder-next",
+  "qwen3-coder-plus",
+  "MiniMax-M2.5",
+  "glm-5",
+  "glm-4.7",
+  "kimi-k2.5",
+];
 
 // LiteLLM does not return the compatible OpenHands models with the provider, so we list them here to set them ourselves
 // (e.g., they return `claude-sonnet-4-20250514` instead of `openhands/claude-sonnet-4-20250514`)

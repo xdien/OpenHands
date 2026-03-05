@@ -57,6 +57,19 @@ from openhands.app_server.web_client.web_client_config_injector import (
 from openhands.sdk.utils.models import OpenHandsModel
 from openhands.server.types import AppMode
 
+# Optional messaging module imports - only required if messaging is enabled
+try:
+    from openhands.messaging.config import MessagingConfig
+    from openhands.messaging.messaging_service import (
+        MessagingServiceInjector as MessagingServiceInjectorBase,
+    )
+
+    MESSAGING_AVAILABLE = True
+except ImportError:
+    MessagingConfig = None  # type: ignore[misc,assignment]
+    MessagingServiceInjectorBase = None  # type: ignore[misc,assignment]
+    MESSAGING_AVAILABLE = False
+
 
 def get_default_persistence_dir() -> Path:
     # Recheck env because this function is also used to generate other defaults
@@ -120,6 +133,13 @@ class AppServerConfig(OpenHandsModel):
         default_factory=lambda: DbSessionInjector(
             persistence_dir=get_default_persistence_dir()
         )
+    )
+    # Messaging Service Injector (optional - only available if messaging module is installed)
+    messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
+        default=None, description='Messaging interface configuration'
+    )
+    messaging_service: 'MessagingServiceInjectorBase | None' = Field(  # type: ignore[valid-type]
+        default=None, description='Messaging service injector'
     )
     # Services
     lifespan: AppLifespanService | None = Field(default_factory=_get_default_lifespan)
@@ -271,6 +291,18 @@ def config_from_env() -> AppServerConfig:
 
     if config.jwt is None:
         config.jwt = JwtServiceInjector(persistence_dir=config.persistence_dir)
+
+    # Configure messaging if enabled
+    if config.messaging is not None and config.messaging.enabled:
+        if not MESSAGING_AVAILABLE:
+            raise RuntimeError(
+                'Messaging is enabled but the messaging module is not available. '
+                'Please install the required dependencies: pip install python-telegram-bot'
+            )
+        if config.messaging_service is None:
+            config.messaging_service = MessagingServiceInjectorBase(
+                config=config.messaging
+            )
 
     return config
 
@@ -437,3 +469,29 @@ def depends_jwt_service():
 
 def depends_db_session():
     return Depends(get_global_config().db_session.depends)
+
+
+def get_messaging_service(
+    state: InjectorState, request: Request | None = None
+) -> AsyncContextManager['MessagingService']:  # type: ignore[name-defined]  # noqa: F821
+    """Get the messaging service instance.
+
+    Returns:
+        AsyncContextManager for MessagingService
+
+    Raises:
+        RuntimeError: If messaging service is not configured
+    """
+
+    injector = get_global_config().messaging_service
+    if injector is None:
+        raise RuntimeError('Messaging service not configured')
+    return injector.context(state, request)
+
+
+def depends_messaging_service():
+    """Dependency injection for messaging service."""
+    injector = get_global_config().messaging_service
+    if injector is None:
+        raise RuntimeError('Messaging service not configured')
+    return Depends(injector.depends)

@@ -15,6 +15,7 @@ import time
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
+    from openhands.messaging.messaging_service import MessagingService
     from openhands.security.analyzer import SecurityAnalyzer
 
 from litellm.exceptions import (  # noqa
@@ -123,6 +124,8 @@ class AgentController:
     _pending_action_info: tuple[Action, float] | None = None  # (action, timestamp)
     _closed: bool = False
     _cached_first_user_message: MessageAction | None = None
+    _messaging_service: 'MessagingService | None' = None
+    _external_user_id: str | None = None
 
     def __init__(
         self,
@@ -143,6 +146,8 @@ class AgentController:
         status_callback: Callable | None = None,
         replay_events: list[Event] | None = None,
         security_analyzer: 'SecurityAnalyzer | None' = None,
+        messaging_service: 'MessagingService | None' = None,
+        external_user_id: str | None = None,
     ):
         """Initializes a new instance of the AgentController class.
 
@@ -162,6 +167,8 @@ class AgentController:
             headless_mode: Whether the agent is run in headless mode.
             status_callback: Optional callback function to handle status updates.
             replay_events: A list of logs to replay.
+            messaging_service: Optional messaging service for external notifications.
+            external_user_id: External user ID for messaging integration.
         """
         self.id = sid or event_stream.sid
         self.user_id = user_id
@@ -209,6 +216,10 @@ class AgentController:
 
         # security analyzer for direct access
         self.security_analyzer = security_analyzer
+
+        # messaging service for external notifications (Telegram, etc.)
+        self._messaging_service = messaging_service
+        self._external_user_id = external_user_id
 
         # Add the system message to the event stream
         self._add_system_message()
@@ -375,6 +386,8 @@ class AgentController:
 
         # Set the agent state to ERROR after storing the reason
         await self.set_agent_state_to(AgentState.ERROR)
+        # Send error notification via messaging service if available
+        await self._send_task_completion_notification('ERROR')
 
     def step(self) -> None:
         asyncio.create_task(self._step_with_exception_handling())
@@ -533,9 +546,13 @@ class AgentController:
         elif isinstance(action, AgentFinishAction):
             self.state.outputs = action.outputs
             await self.set_agent_state_to(AgentState.FINISHED)
+            # Send task completion notification via messaging service if available
+            await self._send_task_completion_notification('FINISHED')
         elif isinstance(action, AgentRejectAction):
             self.state.outputs = action.outputs
             await self.set_agent_state_to(AgentState.REJECTED)
+            # Send task rejection notification via messaging service if available
+            await self._send_task_completion_notification('REJECTED')
         elif isinstance(action, LoopRecoveryAction):
             await self._handle_loop_recovery_action(action)
 
@@ -1028,6 +1045,8 @@ class AgentController:
                 == ActionConfirmationStatus.AWAITING_CONFIRMATION
             ):
                 await self.set_agent_state_to(AgentState.AWAITING_USER_CONFIRMATION)
+                # Send confirmation request via messaging service if available
+                await self._send_confirmation_request(action)
 
             # Create and log metrics for frontend display
             self._prepare_metrics_for_frontend(action)
@@ -1390,3 +1409,94 @@ Agent is now continuing with the same task...
 
     def save_state(self):
         self.state_tracker.save_state()
+
+    async def _send_confirmation_request(self, action: Action) -> None:
+        """Send a confirmation request via the messaging service.
+
+        When an action requires user confirmation, this method sends a
+        notification to the external messaging service (e.g., Telegram)
+        so the user can approve or reject the action.
+
+        Args:
+            action: The action requiring confirmation
+        """
+        if not self._messaging_service or not self._external_user_id:
+            return
+
+        try:
+            action_type = type(action).__name__
+            action_details = getattr(action, 'thought', '') or str(action)
+            action_content = str(action)
+
+            self.log(
+                'info',
+                f'Sending confirmation request for {action_type} via messaging service',
+                extra={'msg_type': 'MESSAGING_CONFIRMATION_REQUEST'},
+            )
+
+            from openhands.messaging.stores.confirmation_store import ConfirmationStatus
+
+            status = await self._messaging_service.request_confirmation(
+                external_user_id=self._external_user_id,
+                action_type=action_type,
+                action_details=action_details,
+                action_content=action_content,
+                conversation_id=self.id,
+                timeout_seconds=300,  # 5 minutes timeout
+            )
+
+            # Handle the response
+            if status == ConfirmationStatus.CONFIRMED:
+                await self.set_agent_state_to(AgentState.USER_CONFIRMED)
+            elif status == ConfirmationStatus.REJECTED:
+                await self.set_agent_state_to(AgentState.USER_REJECTED)
+            else:
+                # EXPIRED or other - treat as rejected
+                self.log(
+                    'warning',
+                    f'Confirmation request expired or failed: {status}',
+                    extra={'msg_type': 'MESSAGING_CONFIRMATION_EXPIRED'},
+                )
+                await self.set_agent_state_to(AgentState.USER_REJECTED)
+
+        except Exception as e:
+            self.log(
+                'error',
+                f'Failed to send confirmation request via messaging service: {e}',
+                exc_info=True,
+                extra={'msg_type': 'MESSAGING_CONFIRMATION_ERROR'},
+            )
+
+    async def _send_task_completion_notification(self, state: str) -> None:
+        """Send a task completion notification via the messaging service.
+
+        When a task completes (finishes, errors, or is rejected), this
+        method sends a notification to the external messaging service.
+
+        Args:
+            state: The final agent state (FINISHED, ERROR, REJECTED)
+        """
+        if not self._messaging_service or not self._external_user_id:
+            return
+
+        try:
+            self.log(
+                'info',
+                f'Sending task completion notification ({state}) via messaging service',
+                extra={'msg_type': 'MESSAGING_TASK_COMPLETION'},
+            )
+
+            await self._messaging_service.send_task_result(
+                external_user_id=self._external_user_id,
+                conversation_id=self.id,
+                state=state,
+                reason=self.state.last_error or '',
+            )
+
+        except Exception as e:
+            self.log(
+                'error',
+                f'Failed to send task completion notification via messaging service: {e}',
+                exc_info=True,
+                extra={'msg_type': 'MESSAGING_NOTIFICATION_ERROR'},
+            )

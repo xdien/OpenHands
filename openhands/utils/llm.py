@@ -46,6 +46,17 @@ CLARIFAI_MODELS = [
     'clarifai/moonshotai.kimi.Kimi-K2-Instruct',
 ]
 
+BAILIAN_MODELS = [
+    'bailian/qwen3.5-plus',
+    'bailian/qwen3-max-2026-01-23',
+    'bailian/qwen3-coder-next',
+    'bailian/qwen3-coder-plus',
+    'bailian/MiniMax-M2.5',
+    'bailian/glm-5',
+    'bailian/glm-4.7',
+    'bailian/kimi-k2.5',
+]
+
 
 def is_openhands_model(model: str | None) -> bool:
     """Check if the model uses the OpenHands provider.
@@ -154,6 +165,6 @@ def get_supported_llm_models(
 
     # Use database-backed models if provided (SaaS), otherwise use hardcoded list
     openhands_models = verified_models if verified_models else OPENHANDS_MODELS
-    model_list = openhands_models + CLARIFAI_MODELS + model_list
+    model_list = openhands_models + CLARIFAI_MODELS + BAILIAN_MODELS + model_list
 
     return sorted(set(model_list))

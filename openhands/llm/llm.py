@@ -29,7 +29,6 @@ from litellm import completion as litellm_completion
 from litellm import completion_cost as litellm_completion_cost
 from litellm.exceptions import (
     APIConnectionError,
-    BadGatewayError,
     RateLimitError,
     ServiceUnavailableError,
 )
@@ -54,7 +53,6 @@ LLM_RETRY_EXCEPTIONS: tuple[type[Exception], ...] = (
     APIConnectionError,
     RateLimitError,
     ServiceUnavailableError,
-    BadGatewayError,
     litellm.Timeout,
     litellm.InternalServerError,
     LLMNoResponseError,
@@ -139,6 +137,16 @@ class LLM(RetryMixin, DebugMixin):
             self.config.base_url = _get_openhands_llm_base_url()
             logger.debug(
                 f'Rewrote openhands/{model_name} to {self.config.model} with base URL {self.config.base_url}'
+            )
+
+        # Handle Bailian provider - rewrite to openai and set base_url
+        if self.config.model.startswith('bailian/'):
+            model_name = self.config.model.removeprefix('bailian/')
+            self.config.model = f'openai/{model_name}'
+            if not self.config.base_url:
+                self.config.base_url = 'https://coding-intl.dashscope.aliyuncs.com/v1'
+            logger.debug(
+                f'Rewrote bailian/{model_name} to {self.config.model} with base URL {self.config.base_url}'
             )
 
         features = get_features(self.config.model)
