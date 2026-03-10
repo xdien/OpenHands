@@ -185,27 +185,27 @@ class DiscordIntegration(BaseMessagingIntegration):
     @property
     def name(self) -> str:
         return "discord"
-    
+
     @property
     def provider_type(self) -> MessagingProviderType:
         return MessagingProviderType.DISCORD
-    
+
     async def start(self) -> None:
         # Initialize Discord bot
         pass
-    
+
     async def stop(self) -> None:
         # Cleanup Discord bot
         pass
-    
+
     async def send_message(self, external_user_id: str, message: str, **kwargs) -> bool:
         # Send message to Discord user
         pass
-    
+
     async def request_confirmation(self, ...) -> ConfirmationStatus:
         # Request confirmation via Discord
         pass
-    
+
     async def handle_incoming_message(self, external_user_id: str, message_text: str, metadata: dict) -> None:
         # Handle incoming Discord messages
         pass
