@@ -11,6 +11,7 @@ class SourceType(str, Enum):
     GITLAB = 'gitlab'
     OPENHANDS = 'openhands'
     SLACK = 'slack'
+    DISCORD = 'discord'
     JIRA = 'jira'
     JIRA_DC = 'jira_dc'
     LINEAR = 'linear'

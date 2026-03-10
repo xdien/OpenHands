@@ -11,13 +11,17 @@ The main components are:
 """
 
 from openhands.messaging.base import BaseMessagingIntegration
-from openhands.messaging.config import MessagingConfig, MessagingProviderType, TelegramConfig
+from openhands.messaging.config import (
+    MessagingConfig,
+    MessagingProviderType,
+    TelegramConfig,
+)
 from openhands.messaging.messaging_service import MessagingService
 
 __all__ = [
-    "BaseMessagingIntegration",
-    "MessagingService",
-    "MessagingConfig",
-    "MessagingProviderType",
-    "TelegramConfig",
+    'BaseMessagingIntegration',
+    'MessagingService',
+    'MessagingConfig',
+    'MessagingProviderType',
+    'TelegramConfig',
 ]

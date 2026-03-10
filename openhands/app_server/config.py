@@ -6,7 +6,7 @@ from typing import AsyncContextManager
 
 import httpx
 from fastapi import Depends, Request
-from pydantic import Field, SecretStr
+from pydantic import ConfigDict, Field, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import the event_callback module to ensure all processors are registered
@@ -109,6 +109,8 @@ def _get_default_lifespan():
 
 
 class AppServerConfig(OpenHandsModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     persistence_dir: Path = Field(default_factory=get_default_persistence_dir)
     web_url: str | None = Field(
         default_factory=get_default_web_url,

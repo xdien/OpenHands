@@ -36,6 +36,7 @@ from server.routes.integration.jira import jira_integration_router  # noqa: E402
 from server.routes.integration.jira_dc import jira_dc_integration_router  # noqa: E402
 from server.routes.integration.linear import linear_integration_router  # noqa: E402
 from server.routes.integration.slack import slack_router  # noqa: E402
+from server.routes.integration.discord import discord_router  # noqa: E402
 from server.routes.mcp_patch import patch_mcp_server  # noqa: E402
 from server.routes.oauth_device import oauth_device_router  # noqa: E402
 from server.routes.org_invitations import (  # noqa: E402
@@ -125,6 +126,7 @@ base_app.include_router(invitation_router)  # Add routes for org invitation mana
 base_app.include_router(invitation_accept_router)  # Add route for accepting invitations
 add_github_proxy_routes(base_app)
 base_app.include_router(slack_router)
+base_app.include_router(discord_router)
 if ENABLE_JIRA:
     base_app.include_router(jira_integration_router)
 if ENABLE_JIRA_DC:

@@ -69,6 +69,13 @@ SLACK_CLIENT_SECRET = os.environ.get('SLACK_CLIENT_SECRET', None)
 SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET', None)
 SLACK_WEBHOOKS_ENABLED = os.environ.get('SLACK_WEBHOOKS_ENABLED', '0') in ('1', 'true')
 
+# Discord configuration
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', None)
+DISCORD_PUBLIC_KEY = os.environ.get('DISCORD_PUBLIC_KEY', None)
+DISCORD_WEBHOOKS_ENABLED = os.environ.get('DISCORD_WEBHOOKS_ENABLED', '0') in ('1', 'true')
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', None)
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', None)
+
 WEB_HOST = os.getenv('WEB_HOST', 'app.all-hands.dev').strip()
 PERMITTED_CORS_ORIGINS = [
     host.strip()
