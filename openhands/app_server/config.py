@@ -6,7 +6,7 @@ from typing import AsyncContextManager
 
 import httpx
 from fastapi import Depends, Request
-from pydantic import ConfigDict, Field, SecretStr
+from pydantic import ConfigDict, Field, PrivateAttr, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import the event_callback module to ensure all processors are registered
@@ -109,8 +109,7 @@ def _get_default_lifespan():
 
 
 class AppServerConfig(OpenHandsModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
+    model_config = ConfigDict(extra='forbid', arbitrary_types_allowed=True)
     persistence_dir: Path = Field(default_factory=get_default_persistence_dir)
     web_url: str | None = Field(
         default_factory=get_default_web_url,
@@ -140,9 +139,18 @@ class AppServerConfig(OpenHandsModel):
     messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
         default=None, description='Messaging interface configuration'
     )
-    messaging_service: 'MessagingServiceInjectorBase | None' = Field(  # type: ignore[valid-type]
-        default=None, description='Messaging service injector'
+    _messaging_service: 'MessagingServiceInjectorBase | None' = PrivateAttr(
+        default=None
     )
+
+    @property
+    def messaging_service(self) -> 'MessagingServiceInjectorBase | None':
+        return self._messaging_service
+
+    @messaging_service.setter
+    def messaging_service(self, value: 'MessagingServiceInjectorBase | None'):
+        self._messaging_service = value
+
     # Services
     lifespan: AppLifespanService | None = Field(default_factory=_get_default_lifespan)
     app_mode: AppMode = AppMode.OPENHANDS
@@ -484,7 +492,6 @@ def get_messaging_service(
     Raises:
         RuntimeError: If messaging service is not configured
     """
-
     injector = get_global_config().messaging_service
     if injector is None:
         raise RuntimeError('Messaging service not configured')
