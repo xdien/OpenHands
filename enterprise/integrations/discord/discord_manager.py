@@ -83,9 +83,8 @@ class DiscordManager(Manager[DiscordViewInterface]):
             discord_user_id: The Discord user ID (snowflake)
 
         Returns:
-            Tuple of (DiscordUser, UserAuth) if authenticated with Keycloak,
-            (DiscordUser, None) if Discord user exists but not linked to Keycloak,
-            (None, None) if Discord user not found
+            Tuple of (DiscordUser, UserAuth) if authenticated,
+            (None, None) if not found
         """
         discord_user = None
         async with a_session_maker() as session:
@@ -97,23 +96,10 @@ class DiscordManager(Manager[DiscordViewInterface]):
             discord_user = result.scalar_one_or_none()
 
         saas_user_auth = None
-        # Only get UserAuth if Discord user exists AND has keycloak_user_id
-        # This allows Discord user to exist without Keycloak integration
-        if discord_user and discord_user.keycloak_user_id:
+        if discord_user:
             saas_user_auth = await get_saas_user_auth(
                 discord_user.keycloak_user_id, self.token_manager
             )
-
-        logger.info(
-            'discord_authenticate_user',
-            extra={
-                'discord_user_id': discord_user_id,
-                'discord_user_found': discord_user is not None,
-                'discord_username': discord_user.discord_username if discord_user else None,
-                'keycloak_user_id': discord_user.keycloak_user_id if discord_user else None,
-                'saas_user_auth': saas_user_auth is not None,
-            },
-        )
 
         return discord_user, saas_user_auth
 
@@ -298,29 +284,14 @@ class DiscordManager(Manager[DiscordViewInterface]):
 
         # Check if this is an unauthenticated user
         if not isinstance(discord_view, DiscordViewInterface):
-            if discord_user is not None and discord_user.keycloak_user_id is None:
-                # Discord is linked but no OpenHands/Keycloak account yet
-                login_link = self._generate_login_link_with_state(message)
-                raise DiscordError(
-                    DiscordErrorCode.DISCORD_LINKED_NO_OPENHANDS,
-                    message_kwargs={
-                        'discord_username': discord_user.discord_username or 'unknown',
-                        'host_url': HOST_URL,
-                        'login_link': login_link,
-                    },
-                    log_context={'discord_user_id': discord_user.discord_user_id},
-                )
-            else:
-                # Discord account not linked at all — ask them to link
-                login_link = self._generate_login_link_with_state(message)
-                raise DiscordError(
-                    DiscordErrorCode.USER_NOT_AUTHENTICATED,
-                    message_kwargs={'login_link': login_link},
-                    log_context=discord_view.to_log_context() if discord_view else {},
-                )
+            login_link = self._generate_login_link_with_state(message)
+            raise DiscordError(
+                DiscordErrorCode.USER_NOT_AUTHENTICATED,
+                message_kwargs={'login_link': login_link},
+                log_context=discord_view.to_log_context() if discord_view else {},
+            )
 
         return discord_view
-
 
     def _generate_login_link_with_state(self, message: Message) -> str:
         """Generate OAuth login link with message state encoded."""
@@ -358,64 +329,9 @@ class DiscordManager(Manager[DiscordViewInterface]):
         await self._send_error_message(payload, error.get_user_message())
 
     async def _send_error_message(self, payload: dict, message: str) -> None:
-        """Send an error message to Discord channel."""
-        channel_id = payload.get('channel_id')
-        thread_id = payload.get('thread_id')
-        if channel_id:
-            await self._post_to_discord(int(channel_id), message, thread_id)
-        else:
-            logger.warning(f'Discord error message (no channel_id): {message}')
-
-    async def _post_to_discord(
-        self,
-        channel_id: int,
-        content: str,
-        thread_id: int | None = None,
-    ) -> None:
-        """Post a message to a Discord channel via REST API.
-
-        Args:
-            channel_id: The Discord channel ID to send to
-            content: The text content to send
-            thread_id: Optional thread ID if message should go to a thread
-        """
-        import httpx
-
-        if not DISCORD_BOT_TOKEN:
-            logger.warning('discord_send_no_bot_token')
-            return
-
-        # Truncate long messages (Discord limit is 2000 chars)
-        if len(content) > 1990:
-            content = content[:1990] + '…'
-
-        target_channel = thread_id if thread_id else channel_id
-        url = f'https://discord.com/api/v10/channels/{target_channel}/messages'
-        headers = {
-            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
-            'Content-Type': 'application/json',
-        }
-        payload_data = {'content': content}
-
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json=payload_data, headers=headers)
-                if resp.status_code not in (200, 201):
-                    logger.error(
-                        'discord_send_message_failed',
-                        extra={
-                            'status': resp.status_code,
-                            'channel_id': channel_id,
-                            'thread_id': thread_id,
-                            'response': resp.text[:200],
-                        },
-                    )
-                else:
-                    logger.info(
-                        f'discord_message_sent to channel {target_channel}'
-                    )
-        except Exception as e:
-            logger.error(f'discord_send_message_exception: {e}')
+        """Send an error message to Discord."""
+        # Simple implementation - can be enhanced
+        logger.info(f'Discord error message: {message} for payload: {payload}')
 
     async def send_message(
         self,
@@ -429,23 +345,19 @@ class DiscordManager(Manager[DiscordViewInterface]):
                      a dict with 'text' and 'embed' keys (for structured messages).
             discord_view: The Discord view object containing channel info.
         """
+        # Import discord.py here to avoid circular imports
+        import discord
+
+        # Create Discord client (or use existing one)
+        # This is a simplified implementation
         channel_id = discord_view.channel_id
         thread_id = discord_view.thread_id
 
-        # Build text content
-        if isinstance(message, dict):
-            content = message.get('text', str(message))
-        else:
-            content = str(message) if message else ''
-
-        if not content:
-            logger.warning('discord_send_message_empty_content')
-            return
-
+        # Send message via Discord API
+        # In production, this would use a shared Discord client
         logger.info(
-            f'discord_send_message to channel {channel_id}, thread {thread_id}: {content[:100]}'
+            f'Discord send_message to channel {channel_id}, thread {thread_id}: {message}'
         )
-        await self._post_to_discord(channel_id, content, thread_id)
 
     async def _try_verify_inferred_repo(
         self, discord_view: DiscordNewConversationView
@@ -510,8 +422,8 @@ class DiscordManager(Manager[DiscordViewInterface]):
             # Try to infer repo
             if await self._try_verify_inferred_repo(discord_view):
                 return True
-            # No repo found - let the user know
-            raise DiscordError(DiscordErrorCode.REPO_NOT_FOUND)
+            # Show repo selection (simplified for now)
+            logger.info(f'[Discord] No repo selected, user needs to specify one')
 
         return False
 

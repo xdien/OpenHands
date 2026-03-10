@@ -5,9 +5,8 @@ including base configuration and provider-specific configurations.
 """
 
 from enum import Enum
-from typing import Any
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr
 
 from openhands.sdk.utils.models import OpenHandsModel
 
@@ -45,33 +44,10 @@ class MessagingConfig(OpenHandsModel):
         default_factory=list,
         description='List of allowed external user IDs (e.g., Telegram chat IDs)',
     )
-
-    @field_validator('allowed_user_ids', mode='before')
-    @classmethod
-    def _parse_allowed_user_ids(cls, v: Any) -> Any:
-        if isinstance(v, str):
-            try:
-                import json
-
-                parsed = json.loads(v)
-                if isinstance(parsed, list):
-                    return parsed
-            except Exception:
-                pass
-            return [x.strip() for x in v.split(',') if x.strip()]
-        return v
-
-    provider_config: dict[str, str] | None = Field(
+    provider_config: dict | None = Field(
         default=None,
         description='Provider-specific configuration (bot_token, webhook_url, etc.)',
     )
-
-    @field_validator('provider_config', mode='before')
-    @classmethod
-    def _stringify_provider_config_values(cls, v: Any) -> Any:
-        if isinstance(v, dict):
-            return {k: str(val) for k, val in v.items()}
-        return v
 
     def get_telegram_config(self) -> 'TelegramConfig':
         """Extract Telegram configuration from provider_config.

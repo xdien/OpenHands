@@ -9,7 +9,7 @@ class DiscordUser(Base):  # type: ignore
 
     __tablename__ = 'discord_users'
     id = Column(Integer, Identity(), primary_key=True)
-    keycloak_user_id = Column(String, nullable=True, index=True)
+    keycloak_user_id = Column(String, nullable=False, index=True)
     org_id = Column(UUID(as_uuid=True), ForeignKey('org.id'), nullable=True)
     discord_user_id = Column(String, nullable=False, index=True)
     discord_username = Column(String, nullable=False)
@@ -21,4 +21,4 @@ class DiscordUser(Base):  # type: ignore
     )
 
     # Relationships
-    org = relationship('Org', foreign_keys=[org_id])
+    org = relationship('Org', back_populates='discord_users')

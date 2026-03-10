@@ -6,7 +6,7 @@ from typing import AsyncContextManager
 
 import httpx
 from fastapi import Depends, Request
-from pydantic import ConfigDict, Field, PrivateAttr, SecretStr
+from pydantic import ConfigDict, Field, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import the event_callback module to ensure all processors are registered
@@ -33,10 +33,6 @@ from openhands.app_server.event_callback.event_callback_service import (
     EventCallbackService,
     EventCallbackServiceInjector,
 )
-from openhands.app_server.pending_messages.pending_message_service import (
-    PendingMessageService,
-    PendingMessageServiceInjector,
-)
 from openhands.app_server.sandbox.sandbox_service import (
     SandboxService,
     SandboxServiceInjector,
@@ -60,7 +56,6 @@ from openhands.app_server.web_client.web_client_config_injector import (
 )
 from openhands.sdk.utils.models import OpenHandsModel
 from openhands.server.types import AppMode
-from openhands.utils.environment import StorageProvider, get_storage_provider
 
 # Optional messaging module imports - only required if messaging is enabled
 try:
@@ -79,10 +74,6 @@ except ImportError:
 def get_default_persistence_dir() -> Path:
     # Recheck env because this function is also used to generate other defaults
     persistence_dir = os.getenv('OH_PERSISTENCE_DIR')
-
-    # Legacy V0 fallback variable
-    if persistence_dir is None:
-        persistence_dir = os.getenv('FILE_STORE_PATH')
 
     if persistence_dir:
         result = Path(persistence_dir)
@@ -104,25 +95,9 @@ def get_default_web_url() -> str | None:
     return f'https://{web_host}'
 
 
-def get_default_permitted_cors_origins() -> list[str]:
-    """Get permitted CORS origins, falling back to legacy PERMITTED_CORS_ORIGINS env var.
-
-    The preferred configuration is via OH_PERMITTED_CORS_ORIGINS_0, _1, etc.
-    (handled by the pydantic from_env parser). This fallback supports the legacy
-    comma-separated PERMITTED_CORS_ORIGINS environment variable.
-    """
-    legacy = os.getenv('PERMITTED_CORS_ORIGINS', '')
-    if legacy:
-        return [o.strip() for o in legacy.split(',') if o.strip()]
-    return []
-
-
 def get_openhands_provider_base_url() -> str | None:
-    """Return the base URL for the OpenHands provider, if configured.
-
-    Falls back to LLM_BASE_URL for backward compatibility.
-    """
-    return os.getenv('OPENHANDS_PROVIDER_BASE_URL') or os.getenv('LLM_BASE_URL') or None
+    """Return the base URL for the OpenHands provider, if configured."""
+    return os.getenv('OPENHANDS_PROVIDER_BASE_URL') or None
 
 
 def _get_default_lifespan():
@@ -134,19 +109,12 @@ def _get_default_lifespan():
 
 
 class AppServerConfig(OpenHandsModel):
-    model_config = ConfigDict(extra='forbid', arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     persistence_dir: Path = Field(default_factory=get_default_persistence_dir)
     web_url: str | None = Field(
         default_factory=get_default_web_url,
         description='The URL where OpenHands is running (e.g., http://localhost:3000)',
-    )
-    permitted_cors_origins: list[str] = Field(
-        default_factory=get_default_permitted_cors_origins,
-        description=(
-            'Additional permitted CORS origins for both the app server and agent '
-            'server containers. Configure via OH_PERMITTED_CORS_ORIGINS_0, _1, etc. '
-            'Falls back to legacy PERMITTED_CORS_ORIGINS env var.'
-        ),
     )
     openhands_provider_base_url: str | None = Field(
         default_factory=get_openhands_provider_base_url,
@@ -160,7 +128,6 @@ class AppServerConfig(OpenHandsModel):
     app_conversation_info: AppConversationInfoServiceInjector | None = None
     app_conversation_start_task: AppConversationStartTaskServiceInjector | None = None
     app_conversation: AppConversationServiceInjector | None = None
-    pending_message: PendingMessageServiceInjector | None = None
     user: UserContextInjector | None = None
     jwt: JwtServiceInjector | None = None
     httpx: HttpxClientInjector = Field(default_factory=HttpxClientInjector)
@@ -173,18 +140,9 @@ class AppServerConfig(OpenHandsModel):
     messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
         default=None, description='Messaging interface configuration'
     )
-    _messaging_service: 'MessagingServiceInjectorBase | None' = PrivateAttr(
-        default=None
+    messaging_service: 'MessagingServiceInjectorBase | None' = Field(  # type: ignore[valid-type]
+        default=None, description='Messaging service injector'
     )
-
-    @property
-    def messaging_service(self) -> 'MessagingServiceInjectorBase | None':
-        return self._messaging_service
-
-    @messaging_service.setter
-    def messaging_service(self, value: 'MessagingServiceInjectorBase | None'):
-        self._messaging_service = value
-
     # Services
     lifespan: AppLifespanService | None = Field(default_factory=_get_default_lifespan)
     app_mode: AppMode = AppMode.OPENHANDS
@@ -203,9 +161,6 @@ def config_from_env() -> AppServerConfig:
     )
     from openhands.app_server.app_conversation.sql_app_conversation_start_task_service import (  # noqa: E501
         SQLAppConversationStartTaskServiceInjector,
-    )
-    from openhands.app_server.event.aws_event_service import (
-        AwsEventServiceInjector,
     )
     from openhands.app_server.event.filesystem_event_service import (
         FilesystemEventServiceInjector,
@@ -241,24 +196,11 @@ def config_from_env() -> AppServerConfig:
     config: AppServerConfig = from_env(AppServerConfig, 'OH')  # type: ignore
 
     if config.event is None:
-        provider = get_storage_provider()
-
-        if provider == StorageProvider.AWS:
-            # AWS S3 storage configuration
-            bucket_name = os.environ.get('FILE_STORE_PATH')
-            if not bucket_name:
-                raise ValueError(
-                    'FILE_STORE_PATH environment variable is required for S3 storage'
-                )
-            config.event = AwsEventServiceInjector(bucket_name=bucket_name)
-        elif provider == StorageProvider.GCP:
-            # Google Cloud storage configuration
-            bucket_name = os.environ.get('FILE_STORE_PATH')
-            if not bucket_name:
-                raise ValueError(
-                    'FILE_STORE_PATH environment variable is required for Google Cloud storage'
-                )
-            config.event = GoogleCloudEventServiceInjector(bucket_name=bucket_name)
+        if os.environ.get('FILE_STORE') == 'google_cloud':
+            # Legacy V0 google cloud storage configuration
+            config.event = GoogleCloudEventServiceInjector(
+                bucket_name=os.environ.get('FILE_STORE_PATH')
+            )
         else:
             config.event = FilesystemEventServiceInjector()
 
@@ -345,13 +287,6 @@ def config_from_env() -> AppServerConfig:
         config.app_conversation = LiveStatusAppConversationServiceInjector(
             tavily_api_key=tavily_api_key
         )
-
-    if config.pending_message is None:
-        from openhands.app_server.pending_messages.pending_message_service import (
-            SQLPendingMessageServiceInjector,
-        )
-
-        config.pending_message = SQLPendingMessageServiceInjector()
 
     if config.user is None:
         config.user = AuthUserContextInjector()
@@ -443,14 +378,6 @@ def get_app_conversation_service(
     return injector.context(state, request)
 
 
-def get_pending_message_service(
-    state: InjectorState, request: Request | None = None
-) -> AsyncContextManager[PendingMessageService]:
-    injector = get_global_config().pending_message
-    assert injector is not None
-    return injector.context(state, request)
-
-
 def get_user_context(
     state: InjectorState, request: Request | None = None
 ) -> AsyncContextManager[UserContext]:
@@ -526,12 +453,6 @@ def depends_app_conversation_service():
     return Depends(injector.depends)
 
 
-def depends_pending_message_service():
-    injector = get_global_config().pending_message
-    assert injector is not None
-    return Depends(injector.depends)
-
-
 def depends_user_context():
     injector = get_global_config().user
     assert injector is not None
@@ -563,6 +484,7 @@ def get_messaging_service(
     Raises:
         RuntimeError: If messaging service is not configured
     """
+
     injector = get_global_config().messaging_service
     if injector is None:
         raise RuntimeError('Messaging service not configured')
