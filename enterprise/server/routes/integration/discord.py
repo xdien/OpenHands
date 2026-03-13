@@ -68,6 +68,101 @@ def verify_discord_signature(body: bytes, signature: str, timestamp: str) -> boo
         return False
 
 
+@discord_router.get('/login')
+async def discord_login(request: Request, state: str = ''):
+    """Show a user-friendly page for Discord account linking.
+
+    Intelligently handles the linking flow:
+    1. If user is logged into OpenHands AND has Discord context -> Link them immediately.
+    2. If user has no Discord link -> Send to Discord OAuth.
+    3. If user has Discord link but no OpenHands session -> Send to Keycloak login.
+    """
+    from fastapi.responses import HTMLResponse
+    import jwt
+    from openhands.server.shared import config
+    from sqlalchemy import select
+    from storage.discord_user import DiscordUser
+    from server.auth.keycloak_manager import get_keycloak_openid
+    from urllib.parse import urlencode
+
+    # Decode target Discord context if state is present
+    discord_user_id = None
+    discord_username = 'unknown'
+    if state and config.jwt_secret:
+        try:
+            payload = jwt.decode(
+                state, config.jwt_secret.get_secret_value(), algorithms=['HS256']
+            )
+            # Support both message payload and simplified linking payload
+            discord_user_id = payload.get('discord_user_id') or payload.get('author', {}).get('id')
+            discord_username = payload.get('discord_username') or payload.get('author', {}).get('username', 'User')
+        except Exception:
+            pass
+
+    # Check if user is already logged into OpenHands
+    keycloak_user_id = None
+    try:
+        user_auth = await saas_user_auth_from_cookie(request)
+        if user_auth:
+            keycloak_user_id = user_auth.user_id
+    except Exception:
+        pass
+
+    # CASE 1: User is logged into OpenHands AND we have Discord context
+    if keycloak_user_id and discord_user_id:
+        async with a_session_maker() as session:
+            result = await session.execute(
+                select(DiscordUser).where(DiscordUser.discord_user_id == str(discord_user_id))
+            )
+            existing_user = result.scalar_one_or_none()
+
+            if existing_user:
+                existing_user.keycloak_user_id = keycloak_user_id
+                await session.commit()
+                return HTMLResponse(
+                    content=f"""
+                    <html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">
+                    <div style="background:#16213e;padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+                    <h1>✅ Success!</h1>
+                    <p>Your Discord account <strong>@{discord_username}</strong> is now linked to your OpenHands account.</p>
+                    <p>You can return to Discord and mention the bot again!</p>
+                    </div></body></html>
+                    """
+                )
+
+    # CASE 2: No OpenHands session -> Redirect to Keycloak first
+    # This ensures we have an identity to link to the Discord account
+    if not keycloak_user_id:
+        from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
+        from urllib.parse import urlencode
+
+        # Construct auth URL manually to avoid backend-to-frontend connection failures 
+        # (e.g. IPv6 / Cloudflare hairpinning issues)
+        base_auth_url = f"{KEYCLOAK_SERVER_URL_EXT}/realms/{KEYCLOAK_REALM_NAME}/protocol/openid-connect/auth"
+        
+        keycloak_state = state if state else 'discord_link'
+        redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
+        
+        params = {
+            'client_id': KEYCLOAK_CLIENT_ID,
+            'redirect_uri': redirect_uri,
+            'state': keycloak_state,
+            'response_type': 'code',
+            'scope': 'openid profile email'
+        }
+        auth_url = f"{base_auth_url}?{urlencode(params)}"
+        
+        return RedirectResponse(auth_url)
+
+    # CASE 3: Has OpenHands session but no Discord context -> Just go to standard Install flow
+    redirect_url = f'{HOST_URL}/discord/install'
+    if state:
+        redirect_url += f'?state={state}'
+        
+    return RedirectResponse(redirect_url)
+    return RedirectResponse(redirect_url)
+
+
 @discord_router.get('/install')
 async def install(state: str = ''):
     """Redirect to Discord OAuth authorization URL."""
@@ -286,7 +381,7 @@ async def keycloak_callback(
 
         # Get Keycloak tokens
         redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
-        token_manager = TokenManager()
+        token_manager = TokenManager(external=True)
         keycloak_access_token, keycloak_refresh_token = await token_manager.get_keycloak_tokens(
             code, redirect_uri
         )
@@ -297,17 +392,49 @@ async def keycloak_callback(
                 status_code=400,
             )
 
-        # Get user info from Keycloak
-        user_info = await token_manager.get_user_info(keycloak_access_token)
-        keycloak_user_id = user_info.sub
+        # Get user info from Keycloak access token
+        # We decode locally to avoid network hair-pinning issues (401/timeout when server calls itself)
+        # We can trust the token because we just got it directly from Keycloak
+        token_payload = jwt.decode(keycloak_access_token, options={"verify_signature": False})
+        keycloak_user_id = token_payload.get('sub')
+        
+        if not keycloak_user_id:
+            return JSONResponse(
+                {'error': 'Could not identify Keycloak user from token'},
+                status_code=400,
+            )
 
         # Verify user exists in OpenHands
         user = await UserStore.get_user_by_id(keycloak_user_id)
         if not user:
-            return JSONResponse(
-                {'error': 'OpenHands user not found. Please log in to OpenHands first.'},
-                status_code=400,
-            )
+            logger.info(f'User {keycloak_user_id} not found in DB, creating from token info...')
+            # Construct user info from token payload for creation
+            user_info_for_creation = {
+                'email': token_payload.get('email'),
+                'preferred_username': token_payload.get('preferred_username', discord_username),
+                'given_name': token_payload.get('given_name'),
+                'family_name': token_payload.get('family_name'),
+                'email_verified': token_payload.get('email_verified', False),
+            }
+            
+            # Ensure email is present (required by UserStore.create_user)
+            if not user_info_for_creation['email']:
+                user_info_for_creation['email'] = f"{user_info_for_creation['preferred_username']}@local"
+                
+            try:
+                user = await UserStore.create_user(keycloak_user_id, user_info_for_creation)
+                if not user:
+                    return JSONResponse(
+                        {'error': 'Failed to create OpenHands user record'},
+                        status_code=500,
+                    )
+                logger.info(f'Created new OpenHands user {keycloak_user_id} during Discord linking')
+            except Exception as e:
+                logger.error(f'Error creating user {keycloak_user_id}: {e}', exc_info=True)
+                return JSONResponse(
+                    {'error': 'Error creating user record', 'detail': str(e)},
+                    status_code=500,
+                )
 
         # Store Discord user in database with keycloak_user_id
         async with a_session_maker() as session:
@@ -343,14 +470,20 @@ async def keycloak_callback(
                     f'Linked Discord user: {discord_username} (ID: {discord_user_id}) to OpenHands user {keycloak_user_id}'
                 )
 
-        return JSONResponse(
-            {
-                'success': True,
-                'message': 'Discord account linked successfully!',
-                'discord_user_id': discord_user_id,
-                'discord_username': discord_username,
-                'openhands_user_id': keycloak_user_id,
-            }
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(
+            content=f"""
+            <html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">
+            <div style="background:#16213e;padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <div style="font-size:48px;margin-bottom:16px;">🚀</div>
+            <h1>Linked Successfully!</h1>
+            <p>Your Discord account <strong>@{discord_username}</strong> is now linked to OpenHands.</p>
+            <p>You can now go back to Discord and start chatting with the bot.</p>
+            <br>
+            <p style="color:#9aa5b4;font-size:14px;">(You can close this window now)</p>
+            </div></body></html>
+            """,
+            status_code=200
         )
 
     except Exception as e:
@@ -428,6 +561,8 @@ async def on_event(request: Request, background_tasks: BackgroundTasks):
         # Build message payload for DiscordManager
         message_payload = {
             'discord_user_id': author.get('id'),
+            'discord_username': author.get('username'),
+            'discord_discriminator': author.get('discriminator'),
             'channel_id': int(channel_id) if channel_id else 0,
             'message_id': int(message_id) if message_id else 0,
             'thread_id': None,  # TODO: Extract from thread if applicable
