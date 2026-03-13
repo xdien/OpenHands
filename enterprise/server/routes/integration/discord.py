@@ -151,15 +151,7 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
         discord_username = user_data.get('username', 'unknown')
         discord_discriminator = user_data.get('discriminator')
 
-        # Check if Keycloak is configured for two-step OAuth
-        keycloak_configured = (
-            KEYCLOAK_SERVER_URL_EXT and
-            KEYCLOAK_REALM_NAME and
-            KEYCLOAK_CLIENT_ID and
-            KEYCLOAK_SERVER_URL_EXT != 'https:'  # Check it's not just 'https:'
-        )
-
-        # Try to get existing user session from cookie
+        # Try to get existing user session from cookie (optional - for future Keycloak integration)
         keycloak_user_id = None
         try:
             user_auth = await saas_user_auth_from_cookie(request)
@@ -168,7 +160,7 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
         except Exception:
             pass
 
-        # Try to get user info from state if any
+        # Try to get user info from state if any (optional - for future Keycloak integration)
         if not keycloak_user_id and state and config.jwt_secret:
             try:
                 payload = jwt.decode(
@@ -178,44 +170,13 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
             except Exception:
                 pass
 
-        if not keycloak_user_id and keycloak_configured and config.jwt_secret:
-            # Two-step OAuth: redirect to Keycloak for OpenHands authentication
-            from urllib.parse import quote
+        # NOTE: Keycloak redirect removed - Discord user is saved directly
+        # When Keycloak is integrated later, keycloak_user_id will be linked via:
+        # 1. User session cookie (if already logged in)
+        # 2. State parameter (if passed from login flow)
+        # 3. Manual database update via admin
 
-            payload = {'discord_user_id': discord_user_id}
-            if state:
-                try:
-                    payload = jwt.decode(
-                        state, config.jwt_secret.get_secret_value(), algorithms=['HS256']
-                    )
-                    payload['discord_user_id'] = discord_user_id
-                    payload['discord_username'] = discord_username
-                    payload['discord_discriminator'] = discord_discriminator
-                except Exception:
-                    payload = {
-                        'discord_user_id': discord_user_id,
-                        'discord_username': discord_username,
-                        'discord_discriminator': discord_discriminator,
-                    }
-
-            state_jwt = jwt.encode(
-                payload, config.jwt_secret.get_secret_value(), algorithm='HS256'
-            )
-
-            # Redirect into keycloak
-            scope = quote('openid email profile offline_access')
-            keycloak_redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
-            auth_url = (
-                f'{KEYCLOAK_SERVER_URL_EXT}/realms/{KEYCLOAK_REALM_NAME}/protocol/openid-connect/auth'
-                f'?client_id={KEYCLOAK_CLIENT_ID}&response_type=code'
-                f'&redirect_uri={keycloak_redirect_uri}'
-                f'&scope={scope}'
-                f'&state={state_jwt}'
-            )
-
-            return RedirectResponse(auth_url)
-
-        # Link Discord user to OpenHands user if we have keycloak_user_id
+        # Link Discord user to OpenHands user (keycloak_user_id can be None)
         async with a_session_maker() as session:
             # Check if Discord user already exists
             result = await session.execute(
@@ -260,9 +221,10 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
         return JSONResponse(
             {
                 'success': True,
-                'message': 'Discord account linked! (Note: Keycloak not configured - user not linked to OpenHands account)',
+                'message': 'Discord account linked successfully! You can now use the bot.',
                 'discord_user_id': discord_user_id,
                 'discord_username': discord_username,
+                'note': 'Keycloak integration not configured. Some features may be limited until OpenHands account is linked.',
             }
         )
 

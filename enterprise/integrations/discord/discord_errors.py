@@ -79,8 +79,10 @@ _USER_MESSAGES: dict[DiscordErrorCode, str] = {
         'Please try again in a few moments.'
     ),
     DiscordErrorCode.USER_NOT_AUTHENTICATED: (
-        '🔐 Please link your Discord account to OpenHands: '
-        '[Click here to Login]({login_link})'
+        '🔐 Please link your Discord account to OpenHands first: '
+        '[Click here to Link Account]({login_link})\n\n'
+        'ℹ️ **Note:** This will allow the bot to access your OpenHands settings and API keys. '
+        'If Keycloak is not configured, your Discord account will still be registered for future use.'
     ),
     DiscordErrorCode.PROVIDER_TIMEOUT: (
         '⏱️ The request timed out while connecting to your git provider. '

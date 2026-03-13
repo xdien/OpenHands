@@ -32,4 +32,4 @@ def refine_prompt(prompt: str):
             r'(?<!execute_)(?<!_)\bbash\b', 'powershell', result, flags=re.IGNORECASE
         )
         return result
-    return prompt
+    return prompt  # type: ignore[unreachable]

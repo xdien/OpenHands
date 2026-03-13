@@ -243,7 +243,7 @@ class ActionExecutor:
             logger.warning('Browser environment not supported on windows')
             return
 
-        logger.debug('Initializing browser asynchronously')
+        logger.debug('Initializing browser asynchronously')  # type: ignore[unreachable]
         try:
             self.browser = BrowserEnv(self.browsergym_eval_env)
             logger.debug('Browser initialized asynchronously')
@@ -558,11 +558,11 @@ class ActionExecutor:
                 assert file_stat is not None
                 # restore the original file permissions if the file already exists
                 os.chmod(filepath, file_stat.st_mode)
-                os.chown(filepath, file_stat.st_uid, file_stat.st_gid)
+                os.chown(filepath, file_stat.st_uid, file_stat.st_gid)  # type: ignore[attr-defined]
             else:
                 # set the new file permissions if the file is new
                 os.chmod(filepath, 0o664)
-                os.chown(filepath, self.user_id, self.user_id)
+                os.chown(filepath, self.user_id, self.user_id)  # type: ignore[attr-defined]
         except PermissionError as e:
             return ErrorObservation(
                 f'File {filepath} written, but failed to change ownership and permissions: {e}'
