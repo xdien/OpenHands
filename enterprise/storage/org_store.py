@@ -22,6 +22,7 @@ from storage.user import User
 from storage.user_settings import UserSettings
 
 from openhands.core.logger import openhands_logger as logger
+from pydantic import BaseModel
 from openhands.storage.data_models.settings import Settings
 
 
@@ -206,7 +207,10 @@ class OrgStore:
             if key.startswith('_'):
                 key = key[1:]  # remove only the very first leading underscore
 
-            kwargs[key] = getattr(settings, normalized)
+            value = getattr(settings, normalized)
+            if isinstance(value, BaseModel):
+                value = value.model_dump()
+            kwargs[key] = value
 
         return kwargs
 
@@ -228,7 +232,10 @@ class OrgStore:
             if key.startswith('_'):
                 key = key[1:]  # remove only the very first leading underscore
 
-            kwargs[key] = getattr(user_settings, normalized)
+            value = getattr(user_settings, normalized)
+            if isinstance(value, BaseModel):
+                value = value.model_dump()
+            kwargs[key] = value
 
         kwargs['org_version'] = user_settings.user_version
         return kwargs

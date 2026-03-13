@@ -104,6 +104,17 @@ class DiscordManager(Manager[DiscordViewInterface]):
                 discord_user.keycloak_user_id, self.token_manager
             )
 
+        logger.info(
+            'discord_authenticate_user',
+            extra={
+                'discord_user_id': discord_user_id,
+                'discord_user_found': discord_user is not None,
+                'discord_username': discord_user.discord_username if discord_user else None,
+                'keycloak_user_id': discord_user.keycloak_user_id if discord_user else None,
+                'saas_user_auth': saas_user_auth is not None,
+            },
+        )
+
         return discord_user, saas_user_auth
 
     async def _store_user_msg_for_form(
@@ -287,14 +298,29 @@ class DiscordManager(Manager[DiscordViewInterface]):
 
         # Check if this is an unauthenticated user
         if not isinstance(discord_view, DiscordViewInterface):
-            login_link = self._generate_login_link_with_state(message)
-            raise DiscordError(
-                DiscordErrorCode.USER_NOT_AUTHENTICATED,
-                message_kwargs={'login_link': login_link},
-                log_context=discord_view.to_log_context() if discord_view else {},
-            )
+            if discord_user is not None and discord_user.keycloak_user_id is None:
+                # Discord is linked but no OpenHands/Keycloak account yet
+                login_link = self._generate_login_link_with_state(message)
+                raise DiscordError(
+                    DiscordErrorCode.DISCORD_LINKED_NO_OPENHANDS,
+                    message_kwargs={
+                        'discord_username': discord_user.discord_username or 'unknown',
+                        'host_url': HOST_URL,
+                        'login_link': login_link,
+                    },
+                    log_context={'discord_user_id': discord_user.discord_user_id},
+                )
+            else:
+                # Discord account not linked at all — ask them to link
+                login_link = self._generate_login_link_with_state(message)
+                raise DiscordError(
+                    DiscordErrorCode.USER_NOT_AUTHENTICATED,
+                    message_kwargs={'login_link': login_link},
+                    log_context=discord_view.to_log_context() if discord_view else {},
+                )
 
         return discord_view
+
 
     def _generate_login_link_with_state(self, message: Message) -> str:
         """Generate OAuth login link with message state encoded."""
@@ -484,8 +510,8 @@ class DiscordManager(Manager[DiscordViewInterface]):
             # Try to infer repo
             if await self._try_verify_inferred_repo(discord_view):
                 return True
-            # Show repo selection (simplified for now)
-            logger.info(f'[Discord] No repo selected, user needs to specify one')
+            # No repo found - let the user know
+            raise DiscordError(DiscordErrorCode.REPO_NOT_FOUND)
 
         return False
 
