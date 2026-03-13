@@ -332,9 +332,64 @@ class DiscordManager(Manager[DiscordViewInterface]):
         await self._send_error_message(payload, error.get_user_message())
 
     async def _send_error_message(self, payload: dict, message: str) -> None:
-        """Send an error message to Discord."""
-        # Simple implementation - can be enhanced
-        logger.info(f'Discord error message: {message} for payload: {payload}')
+        """Send an error message to Discord channel."""
+        channel_id = payload.get('channel_id')
+        thread_id = payload.get('thread_id')
+        if channel_id:
+            await self._post_to_discord(int(channel_id), message, thread_id)
+        else:
+            logger.warning(f'Discord error message (no channel_id): {message}')
+
+    async def _post_to_discord(
+        self,
+        channel_id: int,
+        content: str,
+        thread_id: int | None = None,
+    ) -> None:
+        """Post a message to a Discord channel via REST API.
+
+        Args:
+            channel_id: The Discord channel ID to send to
+            content: The text content to send
+            thread_id: Optional thread ID if message should go to a thread
+        """
+        import httpx
+
+        if not DISCORD_BOT_TOKEN:
+            logger.warning('discord_send_no_bot_token')
+            return
+
+        # Truncate long messages (Discord limit is 2000 chars)
+        if len(content) > 1990:
+            content = content[:1990] + '…'
+
+        target_channel = thread_id if thread_id else channel_id
+        url = f'https://discord.com/api/v10/channels/{target_channel}/messages'
+        headers = {
+            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
+            'Content-Type': 'application/json',
+        }
+        payload_data = {'content': content}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json=payload_data, headers=headers)
+                if resp.status_code not in (200, 201):
+                    logger.error(
+                        'discord_send_message_failed',
+                        extra={
+                            'status': resp.status_code,
+                            'channel_id': channel_id,
+                            'thread_id': thread_id,
+                            'response': resp.text[:200],
+                        },
+                    )
+                else:
+                    logger.info(
+                        f'discord_message_sent to channel {target_channel}'
+                    )
+        except Exception as e:
+            logger.error(f'discord_send_message_exception: {e}')
 
     async def send_message(
         self,
@@ -348,19 +403,23 @@ class DiscordManager(Manager[DiscordViewInterface]):
                      a dict with 'text' and 'embed' keys (for structured messages).
             discord_view: The Discord view object containing channel info.
         """
-        # Import discord.py here to avoid circular imports
-        import discord
-
-        # Create Discord client (or use existing one)
-        # This is a simplified implementation
         channel_id = discord_view.channel_id
         thread_id = discord_view.thread_id
 
-        # Send message via Discord API
-        # In production, this would use a shared Discord client
+        # Build text content
+        if isinstance(message, dict):
+            content = message.get('text', str(message))
+        else:
+            content = str(message) if message else ''
+
+        if not content:
+            logger.warning('discord_send_message_empty_content')
+            return
+
         logger.info(
-            f'Discord send_message to channel {channel_id}, thread {thread_id}: {message}'
+            f'discord_send_message to channel {channel_id}, thread {thread_id}: {content[:100]}'
         )
+        await self._post_to_discord(channel_id, content, thread_id)
 
     async def _try_verify_inferred_repo(
         self, discord_view: DiscordNewConversationView

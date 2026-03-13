@@ -1,4 +1,7 @@
+import asyncio
+import contextlib
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -175,5 +178,34 @@ async def expired_exception_handler(request: Request, exc: ExpiredError):
     logger.info(exc.__class__.__name__)
     return JSONResponse({'error': ExpiredError.__name__}, status.HTTP_401_UNAUTHORIZED)
 
+
+# Wrap the existing lifespan with a Discord gateway bot starter so the bot
+# runs inside the same asyncio event loop as uvicorn.
+_existing_lifespan = base_app.router.lifespan_context
+
+
+@asynccontextmanager
+async def _discord_lifespan(app):
+    """Lifespan that starts Discord gateway bot alongside the normal app lifespan."""
+    task: asyncio.Task | None = None
+    if os.getenv('DISCORD_BOT_TOKEN'):
+        from integrations.discord.discord_gateway_bot import start_discord_gateway_bot
+        task = asyncio.create_task(start_discord_gateway_bot())
+
+    async with contextlib.AsyncExitStack() as stack:
+        if _existing_lifespan is not None:
+            await stack.enter_async_context(_existing_lifespan(app))
+        try:
+            yield
+        finally:
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+
+base_app.router.lifespan_context = _discord_lifespan
 
 app = socketio.ASGIApp(sio, other_asgi_app=base_app)

@@ -140,19 +140,41 @@ class DiscordCallbackProcessor(BaseCallbackProcessor):
         await self._send_discord_message(message)
 
     async def _send_discord_message(self, message: str) -> None:
-        """Send a message to Discord.
+        """Send a message to Discord channel via REST API.
 
         Args:
             message: The message to send
         """
-        logger.info(
-            f'[Discord] Sending message to channel {self.channel_id}: {message[:100]}...'
-        )
+        import httpx
+        from server.constants import DISCORD_BOT_TOKEN
 
-        # In production, this would use the Discord bot client
-        # For now, we log the message
-        # TODO: Implement actual Discord message sending via discord.py
-        pass
+        if not DISCORD_BOT_TOKEN:
+            logger.warning('[Discord] No bot token available to send message')
+            return
+
+        # Truncate to Discord limit
+        if len(message) > 1990:
+            message = message[:1990] + '…'
+
+        target_channel = self.thread_id if self.thread_id else self.channel_id
+        url = f'https://discord.com/api/v10/channels/{target_channel}/messages'
+        headers = {
+            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
+            'Content-Type': 'application/json',
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(url, json={'content': message}, headers=headers)
+                if resp.status_code not in (200, 201):
+                    logger.error(
+                        f'[Discord] Failed to send message: {resp.status_code} {resp.text[:200]}'
+                    )
+                else:
+                    logger.info(
+                        f'[Discord] Message sent to channel {target_channel}'
+                    )
+        except Exception as e:
+            logger.error(f'[Discord] Exception sending message: {e}')
 
     def to_dict(self) -> dict:
         """Serialize the processor to a dictionary for storage.
