@@ -902,7 +902,10 @@ class UserStore:
                 'UserStore:create_default_settings:litellm_create_failed',
                 extra={'org_id': org_id},
             )
-            return None
+            # FALLBACK: If LiteLLM creation fails or is skipped, use settings from config or basic defaults
+            # This ensures that a User record can still be created in the database.
+            settings = Settings.from_config() or default_settings
+            logger.info('UserStore:create_default_settings:using_fallback_settings')
 
         return settings
 

@@ -26,6 +26,8 @@ class DiscordErrorCode(Enum):
     PROVIDER_AUTH_FAILED = 'DISCORD_ERR_006'
     LLM_AUTH_FAILED = 'DISCORD_ERR_007'
     MISSING_SETTINGS = 'DISCORD_ERR_008'
+    DISCORD_LINKED_NO_OPENHANDS = 'DISCORD_ERR_009'
+    REPO_NOT_FOUND = 'DISCORD_ERR_010'
     UNEXPECTED_ERROR = 'DISCORD_ERR_999'
 
 
@@ -102,6 +104,18 @@ _USER_MESSAGES: dict[DiscordErrorCode, str] = {
     ),
     DiscordErrorCode.UNEXPECTED_ERROR: (
         'Uh oh! There was an unexpected error (ref: {code}). Please try again later.'
+    ),
+    DiscordErrorCode.DISCORD_LINKED_NO_OPENHANDS: (
+        '✅ Your Discord account **@{discord_username}** is already linked!\n\n'
+        '⚠️ However, your OpenHands account is not connected yet.\n'
+        'To use the bot\'s full features, please click here to complete setup: '
+        '[🔗 Link OpenHands Account]({login_link})\n\n'
+        'Once linked, mention me again and I\'ll be ready to help! 🚀'
+    ),
+    DiscordErrorCode.REPO_NOT_FOUND: (
+        '🔍 I couldn\'t figure out which repository to work on.\n\n'
+        'Please specify the repository in your message, for example:\n'
+        '`@OpenHands fix the styling in user:repo`'
     ),
 }
 
