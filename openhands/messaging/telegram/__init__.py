@@ -10,12 +10,12 @@ Features:
 - Support for both polling and webhook modes
 """
 
-from openhands.messaging.telegram.telegram_integration import TelegramIntegration
 from openhands.messaging.telegram.telegram_callback_processor import (
     TelegramCallbackProcessor,
 )
+from openhands.messaging.telegram.telegram_integration import TelegramIntegration
 
 __all__ = [
-    "TelegramIntegration",
-    "TelegramCallbackProcessor",
+    'TelegramIntegration',
+    'TelegramCallbackProcessor',
 ]
