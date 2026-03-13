@@ -83,8 +83,9 @@ class DiscordManager(Manager[DiscordViewInterface]):
             discord_user_id: The Discord user ID (snowflake)
 
         Returns:
-            Tuple of (DiscordUser, UserAuth) if authenticated,
-            (None, None) if not found
+            Tuple of (DiscordUser, UserAuth) if authenticated with Keycloak,
+            (DiscordUser, None) if Discord user exists but not linked to Keycloak,
+            (None, None) if Discord user not found
         """
         discord_user = None
         async with a_session_maker() as session:
@@ -96,7 +97,9 @@ class DiscordManager(Manager[DiscordViewInterface]):
             discord_user = result.scalar_one_or_none()
 
         saas_user_auth = None
-        if discord_user:
+        # Only get UserAuth if Discord user exists AND has keycloak_user_id
+        # This allows Discord user to exist without Keycloak integration
+        if discord_user and discord_user.keycloak_user_id:
             saas_user_auth = await get_saas_user_auth(
                 discord_user.keycloak_user_id, self.token_manager
             )
