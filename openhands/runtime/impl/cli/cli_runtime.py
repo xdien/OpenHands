@@ -237,23 +237,23 @@ class CLIRuntime(Runtime):
 
         group_desc = (
             'kill process group'
-            if signal_to_send == signal.SIGKILL
+            if signal_to_send == signal.SIGKILL  # type: ignore[attr-defined]
             else 'terminate process group'
         )
         process_desc = (
-            'kill process' if signal_to_send == signal.SIGKILL else 'terminate process'
+            'kill process' if signal_to_send == signal.SIGKILL else 'terminate process'  # type: ignore[attr-defined]
         )
 
         try:
             # Try to terminate/kill the entire process group
             logger.debug(f'[_safe_terminate_process] Original PID to act on: {pid}')
-            pgid_to_kill = os.getpgid(
+            pgid_to_kill = os.getpgid(  # type: ignore[attr-defined]
                 pid
             )  # This might raise ProcessLookupError if pid is already gone
             logger.debug(
                 f'[_safe_terminate_process] Attempting to {group_desc} for PID {pid} (PGID: {pgid_to_kill}) with {signal_to_send}.'
             )
-            os.killpg(pgid_to_kill, signal_to_send)
+            os.killpg(pgid_to_kill, signal_to_send)  # type: ignore[attr-defined]
             logger.debug(
                 f'[_safe_terminate_process] Successfully sent signal {signal_to_send} to PGID {pgid_to_kill} (original PID: {pid}).'
             )
@@ -262,7 +262,7 @@ class CLIRuntime(Runtime):
                 f'[_safe_terminate_process] ProcessLookupError getting PGID for PID {pid} (it might have already exited): {e_pgid}. Falling back to direct kill/terminate.'
             )
             try:
-                if signal_to_send == signal.SIGKILL:
+                if signal_to_send == signal.SIGKILL:  # type: ignore[attr-defined]
                     process_obj.kill()
                 else:
                     process_obj.terminate()
@@ -279,7 +279,7 @@ class CLIRuntime(Runtime):
             )
             # Fallback: try to terminate/kill the main process directly.
             try:
-                if signal_to_send == signal.SIGKILL:
+                if signal_to_send == signal.SIGKILL:  # type: ignore[attr-defined]
                     process_obj.kill()
                 else:
                     process_obj.terminate()
@@ -411,7 +411,7 @@ class CLIRuntime(Runtime):
                 f'Outer exception in _execute_shell_command for "{command}": {e}'
             )
             if process and process.poll() is None:
-                self._safe_terminate_process(process, signal_to_send=signal.SIGKILL)
+                self._safe_terminate_process(process, signal_to_send=signal.SIGKILL)  # type: ignore[attr-defined]
             return CmdOutputObservation(
                 command=command,
                 content=''.join(output_lines) + f'\nError during execution: {e}',
@@ -706,7 +706,7 @@ class CLIRuntime(Runtime):
             return ErrorObservation('MCP functionality is not available on Windows')
 
         # Import here to avoid circular imports
-        from openhands.mcp.utils import call_tool_mcp as call_tool_mcp_handler
+        from openhands.mcp.utils import call_tool_mcp as call_tool_mcp_handler  # type: ignore[unreachable]
         from openhands.mcp.utils import create_mcp_clients
 
         try:
@@ -947,7 +947,7 @@ class CLIRuntime(Runtime):
             return MCPConfig(sse_servers=[], stdio_servers=[], shttp_servers=[])
 
         # Note: we update the self.config.mcp directly for CLI runtime, which is different from other runtimes.
-        mcp_config = self.config.mcp
+        mcp_config = self.config.mcp  # type: ignore[unreachable]
 
         # Add any extra stdio servers
         if extra_stdio_servers:

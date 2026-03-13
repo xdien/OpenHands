@@ -256,25 +256,28 @@ class DiscordFactory:
 
         Args:
             message: The incoming message with Discord payload
-            discord_user: The linked Discord user (if authenticated)
-            saas_user_auth: The SaaS user auth (if authenticated)
+            discord_user: The linked Discord user (if exists in database)
+            saas_user_auth: The SaaS user auth (if Keycloak linked)
 
         Returns:
-            DiscordViewInterface for authenticated users,
-            DiscordMessageView for unauthenticated users,
+            DiscordViewInterface for fully authenticated users (has Keycloak),
+            DiscordMessageView for:
+                - Discord user exists but no Keycloak link
+                - Discord user not found in database
             None if invalid payload
         """
         payload = message.message
 
         if not discord_user or not saas_user_auth:
-            # Return basic message view for unauthenticated users
+            # Return basic message view for users without Keycloak integration
+            # This allows Discord user to exist without OpenHands account
             return DiscordMessageView(
                 bot_token='',  # Will be filled by from_payload
-                discord_user_id=payload.get('discord_user_id', ''),
-                channel_id=payload.get('channel_id', 0),
-                message_id=payload.get('message_id', 0),
+                discord_user_id=str(payload.get('discord_user_id', '')),
+                channel_id=int(payload.get('channel_id', 0)),
+                message_id=int(payload.get('message_id', 0)),
                 thread_id=payload.get('thread_id'),
-                guild_id=payload.get('guild_id', 0),
+                guild_id=int(payload.get('guild_id', 0)),
             )
 
         # Determine if this is a new conversation or update

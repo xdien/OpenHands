@@ -63,7 +63,7 @@ class PortLock:
                 start_time = time.time()
                 while time.time() - start_time < timeout:
                     try:
-                        fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[attr-defined]
                         self._locked = True
 
                         # Write port number to lock file for debugging
@@ -121,7 +121,7 @@ class PortLock:
             try:
                 if HAS_FCNTL:
                     # Unix: unlock and close
-                    fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
+                    fcntl.flock(self.lock_fd, fcntl.LOCK_UN)  # type: ignore[attr-defined]
 
                 os.close(self.lock_fd)
 
