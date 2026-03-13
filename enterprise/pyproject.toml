@@ -49,6 +49,8 @@ pandas = "^2.2.0"
 numpy = "^2.2.0"
 mcp = "^1.10.0"
 pillow = "^12.1.1"
+discord-py = "^2.7.1"
+uvicorn = "*"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "0.8.3"
