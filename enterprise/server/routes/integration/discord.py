@@ -4,6 +4,9 @@ This module provides FastAPI routes for Discord integration:
 - Webhook endpoint for Discord events (bot mentions)
 - OAuth endpoints for Discord authentication
 - Interaction endpoints for Discord UI components
+
+Supports both Keycloak and NestJS authentication backends.
+Set NESTJS_BACKEND_URL to enable NestJS authentication.
 """
 
 import json
@@ -15,6 +18,11 @@ from integrations.models import Message, SourceType
 from integrations.utils import HOST_URL
 from server.auth.saas_user_auth import saas_user_auth_from_cookie
 from server.auth.token_manager import TokenManager
+from server.auth.enterprise_auth_client import (
+    get_enterprise_auth_client,
+    is_enterprise_auth_enabled,
+    EnterpriseAuthClient,
+)
 from server.constants import (
     DISCORD_BOT_TOKEN,
     DISCORD_PUBLIC_KEY,
@@ -75,14 +83,13 @@ async def discord_login(request: Request, state: str = ''):
     Intelligently handles the linking flow:
     1. If user is logged into OpenHands AND has Discord context -> Link them immediately.
     2. If user has no Discord link -> Send to Discord OAuth.
-    3. If user has Discord link but no OpenHands session -> Send to Keycloak login.
+    3. If user has Discord link but no OpenHands session -> Send to auth provider (NestJS or Keycloak).
     """
     from fastapi.responses import HTMLResponse
     import jwt
     from openhands.server.shared import config
     from sqlalchemy import select
     from storage.discord_user import DiscordUser
-    from server.auth.keycloak_manager import get_keycloak_openid
     from urllib.parse import urlencode
 
     # Decode target Discord context if state is present
@@ -130,36 +137,44 @@ async def discord_login(request: Request, state: str = ''):
                     """
                 )
 
-    # CASE 2: No OpenHands session -> Redirect to Keycloak first
+    # CASE 2: No OpenHands session -> Redirect to auth provider first
     # This ensures we have an identity to link to the Discord account
     if not keycloak_user_id:
-        from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
-        from urllib.parse import urlencode
+        # Check if Enterprise auth is enabled
+        if is_enterprise_auth_enabled():
+            # Use Enterprise authentication
+            enterprise_client = get_enterprise_auth_client(external=True)
+            redirect_uri = f'{HOST_URL}/discord/enterprise-callback'
+            auth_url = enterprise_client.get_auth_url(redirect_uri, state)
+            return RedirectResponse(auth_url)
+        else:
+            # Fall back to Keycloak authentication
+            from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
+            from server.auth.keycloak_manager import get_keycloak_openid
 
-        # Construct auth URL manually to avoid backend-to-frontend connection failures 
-        # (e.g. IPv6 / Cloudflare hairpinning issues)
-        base_auth_url = f"{KEYCLOAK_SERVER_URL_EXT}/realms/{KEYCLOAK_REALM_NAME}/protocol/openid-connect/auth"
-        
-        keycloak_state = state if state else 'discord_link'
-        redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
-        
-        params = {
-            'client_id': KEYCLOAK_CLIENT_ID,
-            'redirect_uri': redirect_uri,
-            'state': keycloak_state,
-            'response_type': 'code',
-            'scope': 'openid profile email'
-        }
-        auth_url = f"{base_auth_url}?{urlencode(params)}"
-        
-        return RedirectResponse(auth_url)
+            # Construct auth URL manually to avoid backend-to-frontend connection failures
+            # (e.g. IPv6 / Cloudflare hairpinning issues)
+            base_auth_url = f"{KEYCLOAK_SERVER_URL_EXT}/realms/{KEYCLOAK_REALM_NAME}/protocol/openid-connect/auth"
+
+            keycloak_state = state if state else 'discord_link'
+            redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
+
+            params = {
+                'client_id': KEYCLOAK_CLIENT_ID,
+                'redirect_uri': redirect_uri,
+                'state': keycloak_state,
+                'response_type': 'code',
+                'scope': 'openid profile email'
+            }
+            auth_url = f"{base_auth_url}?{urlencode(params)}"
+
+            return RedirectResponse(auth_url)
 
     # CASE 3: Has OpenHands session but no Discord context -> Just go to standard Install flow
     redirect_url = f'{HOST_URL}/discord/install'
     if state:
         redirect_url += f'?state={state}'
-        
-    return RedirectResponse(redirect_url)
+
     return RedirectResponse(redirect_url)
 
 
@@ -397,7 +412,7 @@ async def keycloak_callback(
         # We can trust the token because we just got it directly from Keycloak
         token_payload = jwt.decode(keycloak_access_token, options={"verify_signature": False})
         keycloak_user_id = token_payload.get('sub')
-        
+
         if not keycloak_user_id:
             return JSONResponse(
                 {'error': 'Could not identify Keycloak user from token'},
@@ -416,11 +431,11 @@ async def keycloak_callback(
                 'family_name': token_payload.get('family_name'),
                 'email_verified': token_payload.get('email_verified', False),
             }
-            
+
             # Ensure email is present (required by UserStore.create_user)
             if not user_info_for_creation['email']:
                 user_info_for_creation['email'] = f"{user_info_for_creation['preferred_username']}@local"
-                
+
             try:
                 user = await UserStore.create_user(keycloak_user_id, user_info_for_creation)
                 if not user:
@@ -488,6 +503,169 @@ async def keycloak_callback(
 
     except Exception as e:
         logger.error(f'discord_keycloak_callback_error: {e}', exc_info=True)
+        return JSONResponse(
+            {'error': 'Failed to link Discord account', 'detail': str(e)},
+            status_code=500,
+        )
+
+
+@discord_router.get('/enterprise-callback')
+async def enterprise_callback(
+    request: Request,
+    code: str = '',
+    state: str = '',
+    error: str = '',
+):
+    """Handle Enterprise OAuth callback and link Discord user to OpenHands user.
+
+    This is the equivalent of keycloak-callback but for custom enterprise backend.
+    """
+    from urllib.parse import quote
+    from openhands.server.shared import config
+    import jwt
+    from sqlalchemy import select
+    from storage.discord_user import DiscordUser
+    from storage.user_store import UserStore
+    from fastapi.responses import HTMLResponse
+
+    if not code or error:
+        logger.warning(
+            'discord_enterprise_callback_error',
+            extra={'code': code, 'state': state, 'error': error},
+        )
+        return JSONResponse(
+            {'error': error or 'No authorization code provided'},
+            status_code=400,
+        )
+
+    if not config.jwt_secret:
+        return JSONResponse(
+            {'error': 'JWT not configured'},
+            status_code=500,
+        )
+
+    try:
+        # Decode state to get Discord user info
+        payload: dict[str, str] = jwt.decode(
+            state, config.jwt_secret.get_secret_value(), algorithms=['HS256']
+        )
+        discord_user_id = payload.get('discord_user_id')
+        discord_username = payload.get('discord_username', 'unknown')
+        discord_discriminator = payload.get('discord_discriminator')
+
+        if not discord_user_id:
+            return JSONResponse(
+                {'error': 'Discord user ID not found in state'},
+                status_code=400,
+            )
+
+        # Get Enterprise auth tokens
+        redirect_uri = f'{HOST_URL}/discord/enterprise-callback'
+        enterprise_client = get_enterprise_auth_client(external=True)
+        access_token, refresh_token = await enterprise_client.get_tokens_from_code(
+            code, redirect_uri
+        )
+
+        if not access_token:
+            return JSONResponse(
+                {'error': 'Failed to get Enterprise auth tokens'},
+                status_code=400,
+            )
+
+        # Get user info from JWT token
+        token_payload = enterprise_client.decode_jwt(access_token, verify=False)
+        if not token_payload:
+            return JSONResponse(
+                {'error': 'Failed to decode Enterprise auth token'},
+                status_code=400,
+            )
+
+        user_id = token_payload.get('sub')
+
+        if not user_id:
+            return JSONResponse(
+                {'error': 'Could not identify user from Enterprise auth token'},
+                status_code=400,
+            )
+
+        # Verify user exists in OpenHands, create if not
+        user = await UserStore.get_user_by_id(user_id)
+        if not user:
+            logger.info(f'User {user_id} not found in DB, creating from token info...')
+            user_info_for_creation = {
+                'email': token_payload.get('email'),
+                'preferred_username': token_payload.get('preferred_username') or token_payload.get('username', discord_username),
+                'given_name': token_payload.get('given_name'),
+                'family_name': token_payload.get('family_name'),
+                'email_verified': token_payload.get('email_verified', False),
+            }
+
+            if not user_info_for_creation['email']:
+                user_info_for_creation['email'] = f"{user_info_for_creation['preferred_username']}@local"
+
+            try:
+                user = await UserStore.create_user(user_id, user_info_for_creation)
+                if not user:
+                    return JSONResponse(
+                        {'error': 'Failed to create OpenHands user record'},
+                        status_code=500,
+                    )
+                logger.info(f'Created new OpenHands user {user_id} during Discord linking')
+            except Exception as e:
+                logger.error(f'Error creating user {user_id}: {e}', exc_info=True)
+                return JSONResponse(
+                    {'error': 'Error creating user record', 'detail': str(e)},
+                    status_code=500,
+                )
+
+        # Store Discord user in database with user_id
+        async with a_session_maker() as session:
+            result = await session.execute(
+                select(DiscordUser).where(
+                    DiscordUser.discord_user_id == discord_user_id
+                )
+            )
+            existing_user = result.scalar_one_or_none()
+
+            if existing_user:
+                existing_user.keycloak_user_id = user_id
+                existing_user.discord_username = discord_username
+                if discord_discriminator:
+                    existing_user.discord_discriminator = discord_discriminator
+                await session.commit()
+                logger.info(
+                    f'Updated Discord user link: {discord_username} -> {user_id}'
+                )
+            else:
+                new_user = DiscordUser(
+                    keycloak_user_id=user_id,
+                    discord_user_id=discord_user_id,
+                    discord_username=discord_username,
+                    discord_discriminator=discord_discriminator,
+                )
+                session.add(new_user)
+                await session.commit()
+                logger.info(
+                    f'Linked Discord user: {discord_username} (ID: {discord_user_id}) to OpenHands user {user_id}'
+                )
+
+        return HTMLResponse(
+            content=f"""
+            <html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">
+            <div style="background:#16213e;padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <div style="font-size:48px;margin-bottom:16px;">🚀</div>
+            <h1>Linked Successfully!</h1>
+            <p>Your Discord account <strong>@{discord_username}</strong> is now linked to OpenHands.</p>
+            <p>You can now go back to Discord and start chatting with the bot.</p>
+            <br>
+            <p style="color:#9aa5b4;font-size:14px;">(You can close this window now)</p>
+            </div></body></html>
+            """,
+            status_code=200
+        )
+
+    except Exception as e:
+        logger.error(f'discord_nestjs_callback_error: {e}', exc_info=True)
         return JSONResponse(
             {'error': 'Failed to link Discord account', 'detail': str(e)},
             status_code=500,
