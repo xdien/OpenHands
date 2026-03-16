@@ -4,6 +4,8 @@ GITHUB_APP_CLIENT_ID = os.getenv('GITHUB_APP_CLIENT_ID', '').strip()
 GITHUB_APP_CLIENT_SECRET = os.getenv('GITHUB_APP_CLIENT_SECRET', '').strip()
 GITHUB_APP_WEBHOOK_SECRET = os.getenv('GITHUB_APP_WEBHOOK_SECRET', '')
 GITHUB_APP_PRIVATE_KEY = os.getenv('GITHUB_APP_PRIVATE_KEY', '').replace('\\n', '\n')
+
+# Keycloak Configuration (default auth provider)
 KEYCLOAK_SERVER_URL = os.getenv('KEYCLOAK_SERVER_URL', '').rstrip('/')
 KEYCLOAK_REALM_NAME = os.getenv('KEYCLOAK_REALM_NAME', '')
 KEYCLOAK_PROVIDER_NAME = os.getenv('KEYCLOAK_PROVIDER_NAME', '')
@@ -13,6 +15,16 @@ KEYCLOAK_SERVER_URL_EXT = os.getenv(
     'KEYCLOAK_SERVER_URL_EXT', f'https://{os.getenv("AUTH_WEB_HOST", "")}'
 ).rstrip('/')
 KEYCLOAK_ADMIN_PASSWORD = os.getenv('KEYCLOAK_ADMIN_PASSWORD', '')
+
+# Enterprise Authentication Configuration (alternative to Keycloak)
+# Set ENTERPRISE_AUTH_URL to enable custom enterprise authentication instead of Keycloak
+# This can be any JWT-based auth backend (NestJS, Express, FastAPI, etc.)
+ENTERPRISE_AUTH_URL = os.getenv('ENTERPRISE_AUTH_URL', '').rstrip('/')
+ENTERPRISE_AUTH_URL_EXT = os.getenv(
+    'ENTERPRISE_AUTH_URL_EXT', ENTERPRISE_AUTH_URL
+).rstrip('/')
+ENTERPRISE_AUTH_JWT_SECRET = os.getenv('ENTERPRISE_AUTH_JWT_SECRET', '')
+ENTERPRISE_AUTH_JWT_PUBLIC_KEY = os.getenv('ENTERPRISE_AUTH_JWT_PUBLIC_KEY', '').replace('\\n', '\n')
 GITLAB_APP_CLIENT_ID = os.getenv('GITLAB_APP_CLIENT_ID', '').strip()
 GITLAB_APP_CLIENT_SECRET = os.getenv('GITLAB_APP_CLIENT_SECRET', '').strip()
 BITBUCKET_APP_CLIENT_ID = os.getenv('BITBUCKET_APP_CLIENT_ID', '').strip()
