@@ -47,6 +47,7 @@ from openhands.app_server.services.db_session_injector import set_db_session_kee
 from openhands.app_server.services.httpx_client_injector import (
     set_httpx_client_keep_open,
 )
+from openhands.app_server.utils.dependencies import get_dependencies
 from openhands.core.config.llm_config import LLMConfig
 from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.logger import openhands_logger as logger
@@ -77,7 +78,6 @@ from openhands.server.data_models.conversation_info import ConversationInfo
 from openhands.server.data_models.conversation_info_result_set import (
     ConversationInfoResultSet,
 )
-from openhands.server.dependencies import get_dependencies
 from openhands.server.services.conversation_service import (
     create_new_conversation,
     setup_init_conversation_settings,
@@ -603,16 +603,28 @@ async def _try_delete_v1_conversation(
             )
         )
         if app_conversation_info:
+            # Check if the sandbox is shared with other conversations
+            # (e.g. multiple conversations can share a sandbox via /new).
+            # If shared, skip the agent server DELETE call to avoid
+            # destabilizing the runtime for the remaining conversations.
+            sandbox_id = app_conversation_info.sandbox_id
+            sandbox_is_shared = False
+            if sandbox_id:
+                conversation_count = await app_conversation_info_service.count_conversations_by_sandbox_id(
+                    sandbox_id
+                )
+                sandbox_is_shared = conversation_count > 1
+
             # This is a V1 conversation, delete it using the app conversation service
-            # Pass the conversation ID for secure deletion
             result = await app_conversation_service.delete_app_conversation(
-                app_conversation_info.id
+                app_conversation_info.id,
+                skip_agent_server_delete=sandbox_is_shared,
             )
 
             # Manually commit so that the conversation will vanish from the list
             await db_session.commit()
 
-            # Delete the sandbox in the background
+            # Delete the sandbox in the background (checks remaining conversations first)
             asyncio.create_task(
                 _finalize_delete_and_close_connections(
                     sandbox_service,
@@ -692,13 +704,18 @@ async def _delete_v0_conversation(conversation_id: str, user_id: str | None) -> 
     return True
 
 
-@app.get('/conversations/{conversation_id}/remember-prompt')
+@app.get('/conversations/{conversation_id}/remember-prompt', deprecated=True)
 async def get_prompt(
     event_id: int,
     conversation_id: str = Depends(validate_conversation_id),
     user_settings: SettingsStore = Depends(get_user_settings_store),
     metadata: ConversationMetadata = Depends(get_conversation_metadata),
 ):
+    """Get the remember prompt for the microagent UI.
+
+    .. deprecated::
+        This endpoint is deprecated. Microagent UI is deprecated in V1.
+    """
     # get event store for the conversation
     event_store = EventStore(
         sid=conversation_id, file_store=file_store, user_id=metadata.user_id
@@ -1455,7 +1472,7 @@ def _create_combined_page_id(
     return base64.b64encode(json.dumps(next_page_data).encode()).decode()
 
 
-@app.get('/microagent-management/conversations')
+@app.get('/microagent-management/conversations', deprecated=True)
 async def get_microagent_management_conversations(
     selected_repository: str,
     page_id: str | None = None,
@@ -1465,6 +1482,9 @@ async def get_microagent_management_conversations(
     app_conversation_service: AppConversationService = app_conversation_service_dependency,
 ) -> ConversationInfoResultSet:
     """Get conversations for the microagent management page with pagination support.
+
+    .. deprecated::
+        This endpoint is deprecated. Microagent UI is deprecated in V1.
 
     This endpoint returns conversations with conversation_trigger = 'microagent_management'
     and only includes conversations with active PRs. Pagination is supported.
@@ -1582,4 +1602,5 @@ def _to_conversation_info(app_conversation: AppConversation) -> ConversationInfo
         ],
         public=app_conversation.public,
         sandbox_id=app_conversation.sandbox_id,
+        llm_model=app_conversation.llm_model,
     )

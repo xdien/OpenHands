@@ -101,6 +101,9 @@ class StoredConversationMetadata(Base):  # type: ignore
     parent_conversation_id = Column(String, nullable=True, index=True)
     public = Column(Boolean, nullable=True, index=True)
 
+    # Tags for conversation metadata (e.g., automation context, skills used)
+    tags = Column(create_json_type_decorator(dict[str, str]), nullable=True)
+
 
 @dataclass
 class SQLAppConversationInfoService(AppConversationInfoService):
@@ -278,6 +281,14 @@ class SQLAppConversationInfoService(AppConversationInfoService):
         rows = result_set.scalars().all()
         return [UUID(row.conversation_id) for row in rows]
 
+    async def count_conversations_by_sandbox_id(self, sandbox_id: str) -> int:
+        query = await self._secure_select()
+        query = query.where(StoredConversationMetadata.sandbox_id == sandbox_id)
+        count_query = select(func.count()).select_from(query.subquery())
+        result = await self.db_session.execute(count_query)
+        count = result.scalar()
+        return count or 0
+
     async def get_app_conversation_info(
         self, conversation_id: UUID
     ) -> AppConversationInfo | None:
@@ -356,6 +367,7 @@ class SQLAppConversationInfoService(AppConversationInfoService):
                 else None
             ),
             public=info.public,
+            tags=info.tags if info.tags else None,
         )
 
         await self.db_session.merge(stored)
@@ -543,6 +555,7 @@ class SQLAppConversationInfoService(AppConversationInfoService):
             ),
             sub_conversation_ids=sub_conversation_ids or [],
             public=stored.public,
+            tags=stored.tags or {},
             created_at=created_at,
             updated_at=updated_at,
         )
