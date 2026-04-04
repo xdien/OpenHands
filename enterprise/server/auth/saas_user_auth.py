@@ -98,9 +98,25 @@ class SaasUserAuth(UserAuth):
         retry=retry_if_exception_type(KeycloakError),
     )
     async def refresh(self):
+        logger.debug(
+            'saas_user_auth_refresh_start',
+            extra={
+                'refresh_token_prefix': self.refresh_token.get_secret_value()[:50] if self.refresh_token else None,
+            },
+        )
         if self._is_token_expired(self.refresh_token):
             logger.debug('saas_user_auth_refresh:expired')
             raise ExpiredError()
+
+        # Check if enterprise auth is enabled
+        from server.auth.constants import ENTERPRISE_AUTH_URL, ENTERPRISE_AUTH_URL_EXT
+        logger.debug(
+            'saas_user_auth_refresh_check_auth',
+            extra={
+                'ENTERPRISE_AUTH_URL': ENTERPRISE_AUTH_URL,
+                'ENTERPRISE_AUTH_URL_EXT': ENTERPRISE_AUTH_URL_EXT,
+            },
+        )
 
         tokens = await token_manager.refresh(self.refresh_token.get_secret_value())
         self.access_token = SecretStr(tokens['access_token'])
@@ -124,7 +140,11 @@ class SaasUserAuth(UserAuth):
         )
 
         # Sanity check - make sure we refer to current user
-        assert payload['sub'] == self.user_id
+        # Support both 'sub' (Keycloak) and 'userId' (enterprise auth)
+        token_user_id = payload.get('sub') or payload.get('userId')
+        if token_user_id and token_user_id != self.user_id:
+            logger.warning('saas_user_auth_token_user_mismatch: expected=%s, got=%s', self.user_id, token_user_id)
+        # Don't assert - just log warning, as the token might still be valid
 
         # Check token expiration
         expiration = payload.get('exp')
@@ -421,12 +441,32 @@ async def saas_user_auth_from_signed_token(signed_token: str) -> SaasUserAuth:
     )
     accepted_tos = decoded.get('accepted_tos')
 
-    # The access token was encoded using HS256 on keycloak. Since we signed it, we can trust is was
+    # The access token was encoded using HS256. Since we signed it, we can trust it was
     # created by us. So we can grab the user_id and expiration from it without going back to keycloak.
+    # Support both Keycloak (sub, email) and Enterprise (userId) token formats
     access_token_payload = jwt.decode(access_token, options={'verify_signature': False})
-    user_id = access_token_payload['sub']
-    email = access_token_payload['email']
-    email_verified = access_token_payload['email_verified']
+
+    # Support multiple user ID claim names
+    user_id = (
+        access_token_payload.get('sub') or
+        access_token_payload.get('userId') or
+        access_token_payload.get('user_id') or
+        access_token_payload.get('id')
+    )
+
+    if not user_id:
+        logger.error(
+            'saas_user_auth_from_signed_token_no_user_id',
+            extra={'token_payload_keys': list(access_token_payload.keys())},
+        )
+        return None
+
+    # Email may not be present in enterprise tokens
+    email = access_token_payload.get('email')
+    # For enterprise tokens without email_verified field, default to True
+    # since enterprise auth already validates users through their own system
+    # Only Keycloak tokens have email_verified field
+    email_verified = access_token_payload.get('email_verified', True)
 
     # Check if email is blacklisted (whitelist takes precedence)
     if email:

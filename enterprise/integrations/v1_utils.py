@@ -88,7 +88,18 @@ async def get_saas_user_auth(
 ) -> UserAuth:
     offline_token = await token_manager.load_offline_token(keycloak_user_id)
     if offline_token is None:
-        logger.info('no_offline_token_found')
+        logger.warning(
+            'no_offline_token_found_for_discord',
+            extra={'keycloak_user_id': keycloak_user_id},
+        )
+    else:
+        logger.info(
+            'offline_token_found_for_discord',
+            extra={
+                'keycloak_user_id': keycloak_user_id,
+                'token_length': len(offline_token),
+            },
+        )
 
     user_auth = SaasUserAuth(
         user_id=keycloak_user_id,

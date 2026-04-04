@@ -100,8 +100,23 @@ class DiscordManager(Manager[DiscordViewInterface]):
         # Only get UserAuth if Discord user exists AND has keycloak_user_id
         # This allows Discord user to exist without Keycloak integration
         if discord_user and discord_user.keycloak_user_id:
+            logger.info(
+                'discord_authenticate_user_loading_tokens',
+                extra={
+                    'discord_user_id': discord_user_id,
+                    'keycloak_user_id': discord_user.keycloak_user_id,
+                },
+            )
             saas_user_auth = await get_saas_user_auth(
                 discord_user.keycloak_user_id, self.token_manager
+            )
+            logger.info(
+                'discord_authenticate_user_token_loaded',
+                extra={
+                    'discord_user_id': discord_user_id,
+                    'keycloak_user_id': discord_user.keycloak_user_id,
+                    'saas_user_auth_obtained': saas_user_auth is not None,
+                },
             )
 
         logger.info(
@@ -261,17 +276,46 @@ class DiscordManager(Manager[DiscordViewInterface]):
         self._confirm_incoming_source_type(message)
 
         try:
+            logger.info(
+                'discord_receive_message_start',
+                extra={
+                    'discord_user_id': message.message.get('discord_user_id'),
+                    'discord_username': message.message.get('discord_username'),
+                    'user_msg': message.message.get('user_msg', '')[:200],
+                },
+            )
+
             discord_view = await self._process_message(message)
+            logger.info(
+                'discord_process_message_result',
+                extra={
+                    'discord_view_type': type(discord_view).__name__ if discord_view else None,
+                    'has_saas_user_auth': bool(discord_view.saas_user_auth) if discord_view else False,
+                },
+            )
+
             if discord_view and await self.is_job_requested(message, discord_view):
+                logger.info('discord_job_requested')
                 await self.start_job(discord_view)
 
         except DiscordError as e:
+            logger.warning(
+                'discord_error',
+                extra={
+                    'error_code': e.code.value,
+                    'error_message': str(e),
+                },
+            )
             await self.handle_discord_error(message.message, e)
 
         except Exception as e:
             logger.exception(
                 'discord_unexpected_error',
-                extra={'error': str(e), **message.message},
+                extra={
+                    'error': str(e),
+                    'error_type': type(e).__name__,
+                    **message.message,
+                },
             )
             await self.handle_discord_error(
                 message.message,
@@ -456,9 +500,22 @@ class DiscordManager(Manager[DiscordViewInterface]):
             True if a valid repo was found and verified, False otherwise
         """
         user = discord_view.discord_to_openhands_user
-        inferred_repos = infer_repo_from_message(discord_view.user_msg)
+        user_msg = discord_view.user_msg
+
+        logger.info(
+            f'[Discord] Attempting to infer repo from message: "{user_msg[:100]}..." '
+            f'for user {user.discord_username}'
+        )
+
+        inferred_repos = infer_repo_from_message(user_msg)
+        logger.info(
+            f'[Discord] Inferred repos: {inferred_repos}'
+        )
 
         if len(inferred_repos) != 1:
+            logger.info(
+                f'[Discord] No single repo inferred (found {len(inferred_repos)} repos)'
+            )
             return False
 
         inferred_repo = inferred_repos[0]
