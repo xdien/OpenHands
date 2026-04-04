@@ -9,20 +9,31 @@ Supports both Keycloak and NestJS authentication backends.
 Set NESTJS_BACKEND_URL to enable NestJS authentication.
 """
 
+import datetime
 import json
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from integrations.discord.discord_manager import DiscordManager
 from integrations.models import Message, SourceType
 from integrations.utils import HOST_URL
 from server.auth.saas_user_auth import saas_user_auth_from_cookie
+from openhands.server.user_auth import get_user_id
 from server.auth.token_manager import TokenManager
+from server.routes.auth import set_response_cookie
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import hashes
+import base64
+import jwt as pyjwt
 from server.auth.enterprise_auth_client import (
     get_enterprise_auth_client,
     is_enterprise_auth_enabled,
     EnterpriseAuthClient,
+    ENTERPRISE_AUTH_URL_EXT,
 )
+from server.auth.constants import ENTERPRISE_AUTH_JWT_SECRET
 from server.constants import (
     DISCORD_BOT_TOKEN,
     DISCORD_PUBLIC_KEY,
@@ -140,13 +151,170 @@ async def discord_login(request: Request, state: str = ''):
     # CASE 2: No OpenHands session -> Redirect to auth provider first
     # This ensures we have an identity to link to the Discord account
     if not keycloak_user_id:
+        # DEBUG: Log enterprise auth status
+        from server.auth.enterprise_auth_client import is_enterprise_auth_enabled, ENTERPRISE_AUTH_URL, ENTERPRISE_AUTH_URL_EXT
+        logger.info(f'DISCORD_LOGIN_DEBUG: keycloak_user_id={keycloak_user_id}, is_enterprise_auth_enabled={is_enterprise_auth_enabled()}, ENTERPRISE_AUTH_URL={ENTERPRISE_AUTH_URL}, ENTERPRISE_AUTH_URL_EXT={ENTERPRISE_AUTH_URL_EXT}')
+
         # Check if Enterprise auth is enabled
         if is_enterprise_auth_enabled():
-            # Use Enterprise authentication
-            enterprise_client = get_enterprise_auth_client(external=True)
-            redirect_uri = f'{HOST_URL}/discord/enterprise-callback'
-            auth_url = enterprise_client.get_auth_url(redirect_uri, state)
-            return RedirectResponse(auth_url)
+            # Show login form that calls backend API directly
+            # Instead of redirecting to enterprise backend, we show a form here
+            return HTMLResponse(
+                content=f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Login to Link Discord</title>
+                    <style>
+                        body {{
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            background: #1a1a2e;
+                            color: #fff;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100vh;
+                            margin: 0;
+                        }}
+                        .container {{
+                            background: #16213e;
+                            padding: 40px;
+                            border-radius: 16px;
+                            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                            width: 100%;
+                            max-width: 400px;
+                        }}
+                        h1 {{ margin-top: 0; text-align: center; }}
+                        .form-group {{ margin-bottom: 20px; }}
+                        label {{ display: block; margin-bottom: 8px; font-weight: 500; }}
+                        input {{
+                            width: 100%;
+                            padding: 12px;
+                            border: 1px solid #333;
+                            border-radius: 8px;
+                            background: #0f0f23;
+                            color: #fff;
+                            font-size: 16px;
+                            box-sizing: border-box;
+                        }}
+                        input:focus {{ outline: none; border-color: #4a9eff; }}
+                        button {{
+                            width: 100%;
+                            padding: 14px;
+                            background: #4a9eff;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            transition: background 0.2s;
+                        }}
+                        button:hover {{ background: #3a8eef; }}
+                        button:disabled {{ background: #666; cursor: not-allowed; }}
+                        .error {{
+                            background: #ff4444;
+                            color: white;
+                            padding: 12px;
+                            border-radius: 8px;
+                            margin-bottom: 20px;
+                            display: none;
+                        }}
+                        .loading {{ text-align: center; display: none; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>🔗 Link Discord Account</h1>
+                        <p style="text-align: center; color: #aaa; margin-bottom: 30px;">
+                            Please login with your enterprise account to link with Discord
+                        </p>
+
+                        <div id="error" class="error"></div>
+
+                        <form id="loginForm">
+                            <div class="form-group">
+                                <label for="email">Email</label>
+                                <input type="email" id="email" name="email" required placeholder="your@email.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="password">Password</label>
+                                <input type="password" id="password" name="password" required placeholder="Your password">
+                            </div>
+                            <button type="submit" id="submitBtn">Login & Link Discord</button>
+                        </form>
+
+                        <div id="loading" class="loading">
+                            <p>Logging in...</p>
+                        </div>
+                    </div>
+
+                    <script>
+                        const form = document.getElementById('loginForm');
+                        const errorDiv = document.getElementById('error');
+                        const loadingDiv = document.getElementById('loading');
+                        const submitBtn = document.getElementById('submitBtn');
+
+                        form.addEventListener('submit', async (e) => {{
+                            e.preventDefault();
+
+                            const email = document.getElementById('email').value;
+                            const password = document.getElementById('password').value;
+
+                            // Hide form, show loading
+                            form.style.display = 'none';
+                            loadingDiv.style.display = 'block';
+                            errorDiv.style.display = 'none';
+
+                            try {{
+                                // Call enterprise backend login API
+                                const response = await fetch('{ENTERPRISE_AUTH_URL_EXT}/auth/login', {{
+                                    method: 'POST',
+                                    headers: {{
+                                        'Content-Type': 'application/json'
+                                    }},
+                                    body: JSON.stringify({{ email, password }})
+                                }});
+
+                                if (!response.ok) {{
+                                    const errorData = await response.json();
+                                    throw new Error(errorData.message || 'Login failed');
+                                }}
+
+                                const data = await response.json();
+
+                                // Support multiple response formats:
+                                // 1. Standard: {{ access_token: "...", refresh_token: "..." }}
+                                // 2. Nested: {{ token: {{ accessToken: "...", expiresIn: 3600 }}, user: {{...}} }}
+                                const accessToken = data.access_token || data.token?.accessToken;
+                                const refreshToken = data.refresh_token || data.token?.refreshToken;
+
+                                if (accessToken) {{
+                                    // Login successful, redirect to callback with token
+                                    const redirectUri = '{HOST_URL}/discord/enterprise-callback';
+                                    const callbackUrl = new URL(redirectUri);
+                                    callbackUrl.searchParams.set('access_token', accessToken);
+                                    if (refreshToken) {{
+                                        callbackUrl.searchParams.set('refresh_token', refreshToken);
+                                    }}
+                                    callbackUrl.searchParams.set('state', '{state}');
+
+                                    window.location.href = callbackUrl.toString();
+                                }} else {{
+                                    throw new Error('No access token received');
+                                }}
+                            }} catch (err) {{
+                                form.style.display = 'block';
+                                loadingDiv.style.display = 'none';
+                                errorDiv.textContent = err.message || 'Login failed. Please try again.';
+                                errorDiv.style.display = 'block';
+                            }}
+                        }});
+                    </script>
+                </body>
+                </html>
+                """
+            )
         else:
             # Fall back to Keycloak authentication
             from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
@@ -485,6 +653,31 @@ async def keycloak_callback(
                     f'Linked Discord user: {discord_username} (ID: {discord_user_id}) to OpenHands user {keycloak_user_id}'
                 )
 
+        # CRITICAL FIX: Store Keycloak tokens for future authentication
+        # This is required for Discord bot to recognize the user on subsequent mentions
+        try:
+            # Decode JWT to get token expiration
+            token_payload = jwt.decode(keycloak_access_token, options={"verify_signature": False})
+            exp = token_payload.get('exp', 0)
+            now = int(datetime.utcnow().timestamp())
+            expires_in = max(exp - now, 3600)  # Default to 1 hour if no exp claim
+
+            # Store the tokens for offline use
+            await token_manager.store_offline_token(keycloak_user_id, keycloak_refresh_token)
+            logger.info(
+                'discord_keycloak_tokens_stored',
+                extra={
+                    'user_id': keycloak_user_id,
+                    'discord_user_id': discord_user_id,
+                    'expires_in': expires_in,
+                }
+            )
+        except Exception as e:
+            logger.error(
+                'discord_keycloak_token_storage_failed',
+                extra={'user_id': keycloak_user_id, 'error': str(e)},
+            )
+
         from fastapi.responses import HTMLResponse
         return HTMLResponse(
             content=f"""
@@ -513,12 +706,17 @@ async def keycloak_callback(
 async def enterprise_callback(
     request: Request,
     code: str = '',
+    access_token: str = '',
+    refresh_token: str = '',
     state: str = '',
     error: str = '',
 ):
     """Handle Enterprise OAuth callback and link Discord user to OpenHands user.
 
     This is the equivalent of keycloak-callback but for custom enterprise backend.
+    Supports both:
+    - code: OAuth2 authorization code flow (legacy)
+    - access_token: Direct token from login form (new flow)
     """
     from urllib.parse import quote
     from openhands.server.shared import config
@@ -528,17 +726,40 @@ async def enterprise_callback(
     from storage.user_store import UserStore
     from fastapi.responses import HTMLResponse
 
-    if not code or error:
+    # Check for error
+    if error:
         logger.warning(
             'discord_enterprise_callback_error',
             extra={'code': code, 'state': state, 'error': error},
         )
         return JSONResponse(
-            {'error': error or 'No authorization code provided'},
+            {'error': error},
             status_code=400,
         )
 
+    # Check for either code or access_token
+    if not code and not access_token:
+        logger.warning(
+            'discord_enterprise_callback_error',
+            extra={'code': code, 'state': state, 'error': 'No code or access_token provided'},
+        )
+        return JSONResponse(
+            {'error': 'No authorization code or access token provided'},
+            status_code=400,
+        )
+
+    logger.info(
+        'discord_enterprise_callback_debug',
+        extra={
+            'has_code': bool(code),
+            'has_access_token': bool(access_token),
+            'has_state': bool(state),
+            'has_jwt_secret': bool(config.jwt_secret),
+        },
+    )
+
     if not config.jwt_secret:
+        logger.error('discord_enterprise_callback_no_jwt_secret')
         return JSONResponse(
             {'error': 'JWT not configured'},
             status_code=500,
@@ -546,33 +767,58 @@ async def enterprise_callback(
 
     try:
         # Decode state to get Discord user info
-        payload: dict[str, str] = jwt.decode(
-            state, config.jwt_secret.get_secret_value(), algorithms=['HS256']
-        )
-        discord_user_id = payload.get('discord_user_id')
-        discord_username = payload.get('discord_username', 'unknown')
-        discord_discriminator = payload.get('discord_discriminator')
-
-        if not discord_user_id:
-            return JSONResponse(
-                {'error': 'Discord user ID not found in state'},
-                status_code=400,
-            )
+        if state:
+            try:
+                payload: dict[str, str] = jwt.decode(
+                    state, config.jwt_secret.get_secret_value(), algorithms=['HS256']
+                )
+                discord_user_id = payload.get('discord_user_id')
+                discord_username = payload.get('discord_username', 'unknown')
+                discord_discriminator = payload.get('discord_discriminator')
+            except Exception:
+                discord_user_id = None
+                discord_username = 'unknown'
+                discord_discriminator = None
+        else:
+            discord_user_id = None
+            discord_username = 'unknown'
+            discord_discriminator = None
 
         # Get Enterprise auth tokens
-        redirect_uri = f'{HOST_URL}/discord/enterprise-callback'
         enterprise_client = get_enterprise_auth_client(external=True)
-        access_token, refresh_token = await enterprise_client.get_tokens_from_code(
-            code, redirect_uri
-        )
 
-        if not access_token:
-            return JSONResponse(
-                {'error': 'Failed to get Enterprise auth tokens'},
-                status_code=400,
+        if access_token:
+            # New flow: access_token passed directly from login form
+            logger.info('discord_enterprise_callback: Using direct access_token flow')
+            token_payload = enterprise_client.decode_jwt(access_token, verify=False)
+            if not token_payload:
+                return JSONResponse(
+                    {'error': 'Failed to decode access token'},
+                    status_code=400,
+                )
+        else:
+            # Legacy flow: exchange code for tokens
+            redirect_uri = f'{HOST_URL}/discord/enterprise-callback'
+            access_token, refresh_token = await enterprise_client.get_tokens_from_code(
+                code, redirect_uri
             )
 
+            if not access_token:
+                return JSONResponse(
+                    {'error': 'Failed to get Enterprise auth tokens'},
+                    status_code=400,
+                )
+
+            # Get user info from JWT token
+            token_payload = enterprise_client.decode_jwt(access_token, verify=False)
+            if not token_payload:
+                return JSONResponse(
+                    {'error': 'Failed to decode Enterprise auth token'},
+                    status_code=400,
+                )
+
         # Get user info from JWT token
+        # Support multiple claim names: 'sub' (standard), 'userId', 'user_id', 'id'
         token_payload = enterprise_client.decode_jwt(access_token, verify=False)
         if not token_payload:
             return JSONResponse(
@@ -580,9 +826,18 @@ async def enterprise_callback(
                 status_code=400,
             )
 
-        user_id = token_payload.get('sub')
+        user_id = (
+            token_payload.get('sub') or
+            token_payload.get('userId') or
+            token_payload.get('user_id') or
+            token_payload.get('id')
+        )
 
         if not user_id:
+            logger.error(
+                'discord_enterprise_callback_no_user_id',
+                extra={'token_payload_keys': list(token_payload.keys())},
+            )
             return JSONResponse(
                 {'error': 'Could not identify user from Enterprise auth token'},
                 status_code=400,
@@ -592,16 +847,29 @@ async def enterprise_callback(
         user = await UserStore.get_user_by_id(user_id)
         if not user:
             logger.info(f'User {user_id} not found in DB, creating from token info...')
+
+            # Extract user info from token with fallbacks
+            # Your token has: userId, type, roles, iat (no email or username)
+            preferred_username = (
+                token_payload.get('preferred_username') or
+                token_payload.get('username') or
+                token_payload.get('userId') or
+                discord_username or
+                'user'
+            )
+
+            # Ensure email is always a valid string (UserStore.create_user requires it)
+            email = token_payload.get('email')
+            if not email or not isinstance(email, str) or not email.strip():
+                email = f"{preferred_username}@local"
+
             user_info_for_creation = {
-                'email': token_payload.get('email'),
-                'preferred_username': token_payload.get('preferred_username') or token_payload.get('username', discord_username),
-                'given_name': token_payload.get('given_name'),
-                'family_name': token_payload.get('family_name'),
+                'email': email.strip(),
+                'preferred_username': str(preferred_username).strip(),
+                'given_name': token_payload.get('given_name') or '',
+                'family_name': token_payload.get('family_name') or '',
                 'email_verified': token_payload.get('email_verified', False),
             }
-
-            if not user_info_for_creation['email']:
-                user_info_for_creation['email'] = f"{user_info_for_creation['preferred_username']}@local"
 
             try:
                 user = await UserStore.create_user(user_id, user_info_for_creation)
@@ -620,36 +888,65 @@ async def enterprise_callback(
 
         # Store Discord user in database with user_id
         async with a_session_maker() as session:
-            result = await session.execute(
-                select(DiscordUser).where(
-                    DiscordUser.discord_user_id == discord_user_id
+            if discord_user_id:
+                result = await session.execute(
+                    select(DiscordUser).where(
+                        DiscordUser.discord_user_id == discord_user_id
+                    )
                 )
-            )
-            existing_user = result.scalar_one_or_none()
+                existing_user = result.scalar_one_or_none()
 
-            if existing_user:
-                existing_user.keycloak_user_id = user_id
-                existing_user.discord_username = discord_username
-                if discord_discriminator:
-                    existing_user.discord_discriminator = discord_discriminator
-                await session.commit()
-                logger.info(
-                    f'Updated Discord user link: {discord_username} -> {user_id}'
-                )
+                if existing_user:
+                    existing_user.keycloak_user_id = user_id
+                    existing_user.discord_username = discord_username
+                    if discord_discriminator:
+                        existing_user.discord_discriminator = discord_discriminator
+                    await session.commit()
+                else:
+                    # Create new Discord user linked to OpenHands user
+                    new_user = DiscordUser(
+                        keycloak_user_id=user_id,
+                        discord_user_id=discord_user_id,
+                        discord_username=discord_username,
+                        discord_discriminator=discord_discriminator,
+                    )
+                    session.add(new_user)
+                    await session.commit()
             else:
-                new_user = DiscordUser(
-                    keycloak_user_id=user_id,
-                    discord_user_id=discord_user_id,
-                    discord_username=discord_username,
-                    discord_discriminator=discord_discriminator,
-                )
-                session.add(new_user)
-                await session.commit()
-                logger.info(
-                    f'Linked Discord user: {discord_username} (ID: {discord_user_id}) to OpenHands user {user_id}'
-                )
+                # No discord_user_id from state - this is a direct login flow
+                # Just create the user without linking to Discord
+                logger.info(f'No discord_user_id in state, user created without Discord link')
 
-        return HTMLResponse(
+        # CRITICAL FIX: Store enterprise tokens for future authentication
+        # This is required for Discord bot to recognize the user on subsequent mentions
+        try:
+            token_manager = TokenManager(external=True)
+
+            # Decode JWT to get token expiration
+            token_payload = enterprise_client.decode_jwt(access_token, verify=False)
+            exp = token_payload.get('exp', 0)
+            from datetime import timezone
+            now = int(datetime.now(timezone.utc).timestamp())
+            expires_in = max(exp - now, 3600)  # Default to 1 hour if no exp claim
+
+            # Store the tokens for offline use
+            await token_manager.store_offline_token(user_id, access_token)
+            logger.info(
+                'discord_enterprise_tokens_stored',
+                extra={
+                    'user_id': user_id,
+                    'discord_user_id': discord_user_id,
+                    'expires_in': expires_in,
+                }
+            )
+        except Exception as e:
+            logger.error(
+                'discord_enterprise_token_storage_failed',
+                extra={'user_id': user_id, 'error': str(e)},
+            )
+
+        # Create response and set session cookie for OpenHands UI access
+        response = Response(
             content=f"""
             <html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">
             <div style="background:#16213e;padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
@@ -657,12 +954,33 @@ async def enterprise_callback(
             <h1>Linked Successfully!</h1>
             <p>Your Discord account <strong>@{discord_username}</strong> is now linked to OpenHands.</p>
             <p>You can now go back to Discord and start chatting with the bot.</p>
+            <p style="color:#4a9eff;font-size:14px;margin-top:20px;">You can also access OpenHands UI at <a href="/" style="color:#4a9eff;">ai.canthotouring.com</a></p>
             <br>
             <p style="color:#9aa5b4;font-size:14px;">(You can close this window now)</p>
             </div></body></html>
             """,
-            status_code=200
+            status_code=200,
+            media_type='text/html'
         )
+
+        # Set session cookie so user can access /api/settings and other authenticated endpoints
+        # Use the enterprise access_token as both access and refresh token for simplicity
+        # For enterprise auth, we auto-accept TOS since the user authenticated through enterprise backend
+        set_response_cookie(
+            request=request,
+            response=response,
+            keycloak_access_token=access_token,
+            keycloak_refresh_token=access_token,  # Using same token since enterprise doesn't have refresh
+            secure=True,
+            accepted_tos=True,  # Auto-accept TOS for enterprise auth
+        )
+
+        logger.info(
+            'discord_enterprise_session_created',
+            extra={'user_id': user_id, 'discord_user_id': discord_user_id},
+        )
+
+        return response
 
     except Exception as e:
         logger.error(f'discord_nestjs_callback_error: {e}', exc_info=True)
@@ -858,11 +1176,12 @@ async def health():
 async def send_message(
     request: Request,
     background_tasks: BackgroundTasks,
+    user_id: str = Depends(get_user_id),
 ):
     """Send a message to a Discord channel (internal API).
 
     This endpoint is used by the callback processor to send messages
-    back to Discord channels.
+    back to Discord channels. Requires authentication.
     """
     body = await request.json()
 

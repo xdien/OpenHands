@@ -29,13 +29,6 @@ def get_cookie_domain() -> str | None:
 
 
 def get_cookie_samesite() -> Literal['lax', 'strict']:
-    # Use 'strict' in production for maximum CSRF protection
-    # Use 'lax' for local development and staging environments
-    # Note: For invitation links from emails, the frontend handles acceptance via
-    # an authenticated POST request (same-origin), which works with 'strict' cookies
-    web_url = get_global_config().web_url
-    return (
-        'strict'
-        if web_url and not (IS_FEATURE_ENV or IS_STAGING_ENV or IS_LOCAL_ENV)
-        else 'lax'
-    )
+    # Temporarily using 'lax' for all environments to fix cookie issues
+    # TODO: Revert to 'strict' for production after testing
+    return 'lax'

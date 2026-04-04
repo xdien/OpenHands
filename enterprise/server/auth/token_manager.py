@@ -17,7 +17,7 @@ from keycloak.exceptions import (
     KeycloakPostError,
 )
 from pydantic import BaseModel
-from server.auth.auth_error import ExpiredError
+from server.auth.auth_error import AuthError, ExpiredError
 from server.auth.constants import (
     BITBUCKET_APP_CLIENT_ID,
     BITBUCKET_APP_CLIENT_SECRET,
@@ -906,6 +906,54 @@ class TokenManager:
         before_sleep=_before_sleep_callback,
     )
     async def refresh(self, refresh_token: str) -> dict:
+        logger.debug(
+            'token_manager_refresh_start',
+            extra={
+                'refresh_token_prefix': refresh_token[:50] if refresh_token else None,
+                'external': self.external,
+            },
+        )
+
+        # Check if enterprise auth is enabled
+        from server.auth.constants import ENTERPRISE_AUTH_URL, ENTERPRISE_AUTH_URL_EXT
+        from server.auth.enterprise_auth_client import is_enterprise_auth_enabled
+
+        logger.debug(
+            'token_manager_refresh_auth_check',
+            extra={
+                'ENTERPRISE_AUTH_URL': ENTERPRISE_AUTH_URL,
+                'ENTERPRISE_AUTH_URL_EXT': ENTERPRISE_AUTH_URL_EXT,
+                'is_enterprise_auth_enabled': is_enterprise_auth_enabled(),
+            },
+        )
+
+        # If enterprise auth is enabled, handle token refresh differently
+        if is_enterprise_auth_enabled():
+            logger.info('token_manager_refresh_enterprise_auth')
+            # For enterprise auth, the refresh_token IS the access_token
+            # We just return it as-is since enterprise backend handles token validation
+            # Decode the token to check expiration
+            try:
+                payload = jwt.decode(refresh_token, options={'verify_signature': False})
+                exp = payload.get('exp', 0)
+                current_time = int(time.time())
+
+                # If token is still valid, return it
+                if exp > current_time:
+                    return {
+                        'access_token': refresh_token,
+                        'refresh_token': refresh_token,
+                    }
+                else:
+                    # Token expired - need to re-authenticate
+                    raise ExpiredError('Enterprise auth token has expired')
+            except ExpiredError:
+                raise
+            except Exception as e:
+                logger.error(f'token_manager_refresh_enterprise_error: {e}')
+                raise AuthError(f'Failed to refresh enterprise token: {e}') from e
+
+        # Use Keycloak for non-enterprise auth
         try:
             return await get_keycloak_openid(self.external).a_refresh_token(
                 refresh_token
@@ -974,6 +1022,16 @@ class TokenManager:
         return tokens['refresh_token']
 
     async def logout(self, refresh_token: str):
+        # Check if enterprise auth is enabled
+        from server.auth.enterprise_auth_client import is_enterprise_auth_enabled
+
+        if is_enterprise_auth_enabled():
+            # For enterprise auth, there's no Keycloak session to logout from
+            # The token will simply expire on its own
+            logger.info('token_manager_logout_enterprise_auth')
+            return
+
+        # Use Keycloak for non-enterprise auth
         try:
             await get_keycloak_openid(self.external).a_logout(
                 refresh_token=refresh_token

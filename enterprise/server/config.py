@@ -143,8 +143,9 @@ class SaaSServerConfig(ServerConfig):
         if not self.config_cls:
             raise ValueError('Config path not provided!')
 
-        if not self.posthog_client_key:
-            raise ValueError('Missing posthog client key in env')
+        # PostHog is optional - skip validation if not configured
+        # if not self.posthog_client_key:
+        #     raise ValueError('Missing posthog client key in env')
 
         if GITHUB_APP_CLIENT_ID and not self.github_client_id:
             raise ValueError('Missing Github client id')

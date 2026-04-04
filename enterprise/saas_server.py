@@ -2,10 +2,13 @@ import asyncio
 import contextlib
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from enterprise directory
+env_path = Path(__file__).parent / '.env'
+load_dotenv(env_path)
 
 # Ensure SAAS configuration is used
 if not os.getenv('OPENHANDS_CONFIG_CLS'):
