@@ -75,6 +75,19 @@ except ImportError:
     MessagingServiceInjectorBase = None  # type: ignore[misc,assignment]
     MESSAGING_AVAILABLE = False
 
+# Optional messaging module imports - only required if messaging is enabled
+try:
+    from openhands.messaging.config import MessagingConfig
+    from openhands.messaging.messaging_service import (
+        MessagingServiceInjector as MessagingServiceInjectorBase,
+    )
+
+    MESSAGING_AVAILABLE = True
+except ImportError:
+    MessagingConfig = None  # type: ignore[misc,assignment]
+    MessagingServiceInjectorBase = None  # type: ignore[misc,assignment]
+    MESSAGING_AVAILABLE = False
+
 
 def get_default_persistence_dir() -> Path:
     # Recheck env because this function is also used to generate other defaults
