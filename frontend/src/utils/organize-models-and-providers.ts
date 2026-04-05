@@ -20,7 +20,17 @@ import { extractModelAndProvider } from "./extract-model-and-provider";
  * //   },
  * // }
  */
-export const organizeModelsAndProviders = (models: string[]) => {
+export const organizeModelsAndProviders = (models: unknown) => {
+  // Validate input is an array to prevent "forEach is not a function" errors
+  if (!Array.isArray(models)) {
+    console.warn(
+      "organizeModelsAndProviders: expected array but got",
+      typeof models,
+      models,
+    );
+    return {};
+  }
+
   const object: Record<string, { separator: string; models: string[] }> = {};
 
   models.forEach((model) => {

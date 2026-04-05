@@ -12,6 +12,7 @@ from typing import Any
 from integrations.manager import Manager
 from integrations.models import Message, SourceType
 from integrations.discord.discord_errors import DiscordError, DiscordErrorCode
+from server.auth.auth_error import AuthError, ExpiredError
 from integrations.discord.discord_types import (
     DiscordMessageView,
     DiscordViewInterface,
@@ -308,6 +309,36 @@ class DiscordManager(Manager[DiscordViewInterface]):
             )
             await self.handle_discord_error(message.message, e)
 
+        except ExpiredError as e:
+            # Token expired - user needs to re-authenticate
+            logger.warning(
+                'discord_auth_expired',
+                extra={
+                    'discord_user_id': message.message.get('discord_user_id'),
+                    'error': str(e),
+                },
+            )
+            login_link = self._generate_login_link_with_state(message)
+            await self._post_to_discord(
+                message.message['channel_id'],
+                f"⚠️ Your session has expired. Please re-authenticate to continue: {login_link}",
+            )
+
+        except AuthError as e:
+            # Other auth errors - user needs to authenticate
+            logger.warning(
+                'discord_auth_error',
+                extra={
+                    'discord_user_id': message.message.get('discord_user_id'),
+                    'error': str(e),
+                },
+            )
+            login_link = self._generate_login_link_with_state(message)
+            await self._post_to_discord(
+                message.message['channel_id'],
+                f"⚠️ Authentication required. Please re-authenticate to continue: {login_link}",
+            )
+
         except Exception as e:
             logger.exception(
                 'discord_unexpected_error',
@@ -519,9 +550,10 @@ class DiscordManager(Manager[DiscordViewInterface]):
             return False
 
         inferred_repo = inferred_repos[0]
+        user_id = await discord_view.saas_user_auth.get_user_id()
         logger.info(
             f'[Discord] Verifying inferred repo "{inferred_repo}" '
-            f'for user {user.discord_username} (id={discord_view.saas_user_auth.get_user_id()})'
+            f'for user {user.discord_username} (id={user_id})'
         )
 
         try:

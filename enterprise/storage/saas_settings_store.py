@@ -81,8 +81,18 @@ class SaasSettingsStore(SettingsStore):
             if om.org_id == org_id:
                 org_member = om
                 break
-        if not org_member or not org_member.llm_api_key:
+        if not org_member:
+            logger.warning(
+                'saas_settings_store_load_no_org_member',
+                extra={
+                    'user_id': self.user_id,
+                    'org_id': str(org_id) if org_id else None,
+                    'org_members_count': len(user.org_members) if user.org_members else 0,
+                },
+            )
             return None
+        # Allow loading settings even if user doesn't have llm_api_key yet
+        # This enables new users to get settings with org defaults
         org = await OrgStore.get_org_by_id_async(org_id)
         if not org:
             logger.error(
@@ -106,7 +116,13 @@ class SaasSettingsStore(SettingsStore):
                 if (normalized := c.name.lstrip('_')) in Settings.model_fields
             },
         }
-        kwargs['llm_api_key'] = org_member.llm_api_key
+        # Only set llm_api_key if it exists and has a value
+        try:
+            if org_member.llm_api_key and org_member.llm_api_key.get_secret_value():
+                kwargs['llm_api_key'] = org_member.llm_api_key
+        except (AttributeError, TypeError):
+            # llm_api_key is None or not a SecretStr
+            pass
         if org_member.max_iterations:
             kwargs['max_iterations'] = org_member.max_iterations
         if org_member.llm_model:
@@ -130,6 +146,7 @@ class SaasSettingsStore(SettingsStore):
     async def store(self, item: Settings):
         async with a_session_maker() as session:
             if not item:
+                logger.warning('saas_settings_store_store_empty_item', extra={'user_id': self.user_id})
                 return None
             result = await session.execute(
                 select(User)
@@ -139,6 +156,10 @@ class SaasSettingsStore(SettingsStore):
             user = result.scalars().first()
 
             if not user:
+                logger.warning(
+                    'saas_settings_store_store_user_not_found',
+                    extra={'user_id': self.user_id},
+                )
                 # Check if we need to migrate from user_settings
                 user_settings = None
                 async with a_session_maker() as new_session:
@@ -170,8 +191,17 @@ class SaasSettingsStore(SettingsStore):
                 if om.org_id == org_id:
                     org_member = om
                     break
-            if not org_member or not org_member.llm_api_key:
+            if not org_member:
+                logger.warning(
+                    'saas_settings_store_store_no_org_member',
+                    extra={
+                        'user_id': self.user_id,
+                        'org_id': str(org_id) if org_id else None,
+                    },
+                )
                 return None
+            # Allow storing settings even if user doesn't have llm_api_key yet
+            # The _ensure_api_key call below will create one if needed
 
             result = await session.execute(select(Org).filter(Org.id == org_id))
             org = result.scalars().first()
@@ -182,9 +212,10 @@ class SaasSettingsStore(SettingsStore):
                 return None
 
             # Check if we need to generate an LLM key.
-            if not item.llm_base_url or item.llm_base_url == LITE_LLM_API_URL:
+            # Only generate OpenHands key if using OpenHands models and no custom key provided
+            if (not item.llm_base_url or item.llm_base_url == LITE_LLM_API_URL) and is_openhands_model(item.llm_model):
                 await self._ensure_api_key(
-                    item, str(org_id), openhands_type=is_openhands_model(item.llm_model)
+                    item, str(org_id), openhands_type=True
                 )
 
             kwargs = item.model_dump(context={'expose_secrets': True})

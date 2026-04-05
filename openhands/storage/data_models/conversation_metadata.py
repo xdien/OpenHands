@@ -17,6 +17,7 @@ class ConversationTrigger(Enum):
     LINEAR = 'linear'
     BITBUCKET = 'bitbucket'
     AUTOMATION = 'automation'
+    DISCORD = 'discord'
 
 
 @dataclass

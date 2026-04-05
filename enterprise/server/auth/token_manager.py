@@ -936,7 +936,14 @@ class TokenManager:
             try:
                 payload = jwt.decode(refresh_token, options={'verify_signature': False})
                 exp = payload.get('exp', 0)
+                iat = payload.get('iat', 0)
                 current_time = int(time.time())
+
+                # If no exp claim, default to 1 hour from iat (or current time)
+                if exp == 0 and iat > 0:
+                    exp = iat + 3600  # Default 1 hour from issued time
+                elif exp == 0:
+                    exp = current_time + 3600  # Default 1 hour from now
 
                 # If token is still valid, return it
                 if exp > current_time:

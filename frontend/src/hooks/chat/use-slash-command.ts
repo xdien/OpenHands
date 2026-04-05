@@ -55,7 +55,7 @@ export const useSlashCommand = (
       items.push(...BUILT_IN_COMMANDS);
     }
 
-    if (!skills) return items;
+    if (!Array.isArray(skills)) return items;
     skills.forEach((skill) => {
       const triggers = skill.triggers || [];
       const slashTriggers = triggers.filter((t) => t.startsWith("/"));

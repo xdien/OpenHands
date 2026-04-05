@@ -244,7 +244,7 @@ class V1ConversationService {
   static async batchGetAppConversations(
     ids: string[],
   ): Promise<(V1AppConversation | null)[]> {
-    if (ids.length === 0) {
+    if (!Array.isArray(ids) || ids.length === 0) {
       return [];
     }
     if (ids.length > 100) {
