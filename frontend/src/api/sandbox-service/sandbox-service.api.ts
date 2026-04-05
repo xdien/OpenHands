@@ -36,7 +36,7 @@ export class SandboxService {
   static async batchGetSandboxes(
     ids: string[],
   ): Promise<(V1SandboxInfo | null)[]> {
-    if (ids.length === 0) {
+    if (!Array.isArray(ids) || ids.length === 0) {
       return [];
     }
     if (ids.length > 100) {

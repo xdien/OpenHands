@@ -85,21 +85,22 @@ async def handle_callback_error(
 
 async def get_saas_user_auth(
     keycloak_user_id: str, token_manager: TokenManager
-) -> UserAuth:
+) -> UserAuth | None:
     offline_token = await token_manager.load_offline_token(keycloak_user_id)
     if offline_token is None:
         logger.warning(
             'no_offline_token_found_for_discord',
             extra={'keycloak_user_id': keycloak_user_id},
         )
-    else:
-        logger.info(
-            'offline_token_found_for_discord',
-            extra={
-                'keycloak_user_id': keycloak_user_id,
-                'token_length': len(offline_token),
-            },
-        )
+        return None
+
+    logger.info(
+        'offline_token_found_for_discord',
+        extra={
+            'keycloak_user_id': keycloak_user_id,
+            'token_length': len(offline_token),
+        },
+    )
 
     user_auth = SaasUserAuth(
         user_id=keycloak_user_id,

@@ -136,6 +136,13 @@ async def load_settings(
     """
     try:
         if not settings:
+            logger.warning(
+                'settings_load_not_found',
+                extra={
+                    'has_settings_object': settings is not None,
+                    'user_id': getattr(settings, 'user_id', None) if settings else None,
+                },
+            )
             return JSONResponse(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={'error': 'Settings not found'},

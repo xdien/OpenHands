@@ -32,14 +32,33 @@ interface ModelSelectorProps {
 export function ModelSelector({
   isDisabled,
   models,
-  verifiedModels,
-  verifiedProviders,
+  verifiedModels: verifiedModelsProp,
+  verifiedProviders: verifiedProvidersProp,
   currentModel,
   onChange,
   onDefaultValuesChanged,
   wrapperClassName,
   labelClassName,
 }: ModelSelectorProps) {
+  // Validate array props to prevent "forEach is not a function" errors
+  const verifiedModels = Array.isArray(verifiedModelsProp)
+    ? verifiedModelsProp
+    : [];
+  const verifiedProviders = Array.isArray(verifiedProvidersProp)
+    ? verifiedProvidersProp
+    : [];
+
+  // Validate models is a proper object with array values
+  const safeModels: Record<string, { separator: string; models: string[] }> =
+    {};
+  if (models && typeof models === "object") {
+    Object.entries(models).forEach(([key, value]) => {
+      if (value && typeof value === "object" && Array.isArray(value.models)) {
+        safeModels[key] = value;
+      }
+    });
+  }
+
   const [, setLitellmId] = React.useState<string | null>(null);
   const [selectedProvider, setSelectedProvider] = React.useState<string | null>(
     null,
@@ -62,13 +81,13 @@ export function ModelSelector({
     setSelectedProvider(provider);
     setSelectedModel(null);
 
-    const separator = models[provider]?.separator || "";
+    const separator = safeModels[provider]?.separator || "";
     setLitellmId(provider + separator);
     onChange?.(provider, null);
   };
 
   const handleChangeModel = (model: string) => {
-    const separator = models[selectedProvider || ""]?.separator || "";
+    const separator = safeModels[selectedProvider || ""]?.separator || "";
     let fullModel = selectedProvider + separator + model;
     if (selectedProvider === "openai") {
       // LiteLLM lists OpenAI models without the openai/ prefix
@@ -124,7 +143,7 @@ export function ModelSelector({
         >
           <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}>
             {verifiedProviders
-              .filter((provider) => models[provider])
+              .filter((provider) => safeModels[provider])
               .map((provider) => (
                 <AutocompleteItem
                   data-testid={`provider-item-${provider}`}
@@ -134,11 +153,11 @@ export function ModelSelector({
                 </AutocompleteItem>
               ))}
           </AutocompleteSection>
-          {Object.keys(models).some(
+          {Object.keys(safeModels).some(
             (provider) => !verifiedProviders.includes(provider),
           ) ? (
             <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$OTHERS)}>
-              {Object.keys(models)
+              {Object.keys(safeModels)
                 .filter((provider) => !verifiedProviders.includes(provider))
                 .map((provider) => (
                   <AutocompleteItem key={provider}>
@@ -192,17 +211,17 @@ export function ModelSelector({
           <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$VERIFIED)}>
             {verifiedModels
               .filter((model) =>
-                models[selectedProvider || ""]?.models?.includes(model),
+                safeModels[selectedProvider || ""]?.models?.includes(model),
               )
               .map((model) => (
                 <AutocompleteItem key={model}>{model}</AutocompleteItem>
               ))}
           </AutocompleteSection>
-          {models[selectedProvider || ""]?.models?.some(
+          {safeModels[selectedProvider || ""]?.models?.some(
             (model) => !verifiedModels.includes(model),
           ) ? (
             <AutocompleteSection title={t(I18nKey.MODEL_SELECTOR$OTHERS)}>
-              {models[selectedProvider || ""]?.models
+              {safeModels[selectedProvider || ""]?.models
                 .filter((model) => !verifiedModels.includes(model))
                 .map((model) => (
                   <AutocompleteItem

@@ -31,6 +31,7 @@ from server.auth.enterprise_auth_client import (
     get_enterprise_auth_client,
     is_enterprise_auth_enabled,
     EnterpriseAuthClient,
+    ENTERPRISE_AUTH_URL,
     ENTERPRISE_AUTH_URL_EXT,
 )
 from server.auth.constants import ENTERPRISE_AUTH_JWT_SECRET
@@ -118,16 +119,22 @@ async def discord_login(request: Request, state: str = ''):
             pass
 
     # Check if user is already logged into OpenHands
+    # NOTE: For enterprise auth, we always force a fresh login to get a new token
+    # because the existing session token may be close to expiration
     keycloak_user_id = None
-    try:
-        user_auth = await saas_user_auth_from_cookie(request)
-        if user_auth:
-            keycloak_user_id = user_auth.user_id
-    except Exception:
-        pass
+    force_fresh_login = is_enterprise_auth_enabled()
+    if not force_fresh_login:
+        try:
+            user_auth = await saas_user_auth_from_cookie(request)
+            if user_auth:
+                keycloak_user_id = user_auth.user_id
+        except Exception:
+            pass
 
     # CASE 1: User is logged into OpenHands AND we have Discord context
-    if keycloak_user_id and discord_user_id:
+    # NOTE: For enterprise auth, we skip this case because the existing session token
+    # may be close to expiration. Instead, we force a fresh login to get a new token.
+    if keycloak_user_id and discord_user_id and not is_enterprise_auth_enabled():
         async with a_session_maker() as session:
             result = await session.execute(
                 select(DiscordUser).where(DiscordUser.discord_user_id == str(discord_user_id))
@@ -137,6 +144,31 @@ async def discord_login(request: Request, state: str = ''):
             if existing_user:
                 existing_user.keycloak_user_id = keycloak_user_id
                 await session.commit()
+
+                # CRITICAL: Store enterprise offline token for Discord bot authentication
+                # Get the refresh token from user_auth and store it
+                try:
+                    user_auth = await saas_user_auth_from_cookie(request)
+                    if user_auth and user_auth.refresh_token:
+                        token_manager = TokenManager(external=True)
+                        refresh_token_value = user_auth.refresh_token.get_secret_value()
+                        await token_manager.store_offline_token(keycloak_user_id, refresh_token_value)
+                        logger.info(
+                            'discord_link_success_store_token',
+                            extra={
+                                'keycloak_user_id': keycloak_user_id,
+                                'discord_user_id': discord_user_id,
+                            }
+                        )
+                except Exception as e:
+                    logger.error(
+                        'discord_link_token_storage_failed',
+                        extra={
+                            'keycloak_user_id': keycloak_user_id,
+                            'error': str(e),
+                        }
+                    )
+
                 return HTMLResponse(
                     content=f"""
                     <html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">
@@ -152,11 +184,19 @@ async def discord_login(request: Request, state: str = ''):
     # This ensures we have an identity to link to the Discord account
     if not keycloak_user_id:
         # DEBUG: Log enterprise auth status
-        from server.auth.enterprise_auth_client import is_enterprise_auth_enabled, ENTERPRISE_AUTH_URL, ENTERPRISE_AUTH_URL_EXT
-        logger.info(f'DISCORD_LOGIN_DEBUG: keycloak_user_id={keycloak_user_id}, is_enterprise_auth_enabled={is_enterprise_auth_enabled()}, ENTERPRISE_AUTH_URL={ENTERPRISE_AUTH_URL}, ENTERPRISE_AUTH_URL_EXT={ENTERPRISE_AUTH_URL_EXT}')
+        enterprise_enabled = is_enterprise_auth_enabled()
+        logger.info(
+            'DISCORD_LOGIN_DEBUG',
+            extra={
+                'keycloak_user_id': keycloak_user_id,
+                'is_enterprise_auth_enabled': enterprise_enabled,
+                'ENTERPRISE_AUTH_URL': ENTERPRISE_AUTH_URL,
+                'ENTERPRISE_AUTH_URL_EXT': ENTERPRISE_AUTH_URL_EXT,
+            }
+        )
 
         # Check if Enterprise auth is enabled
-        if is_enterprise_auth_enabled():
+        if enterprise_enabled:
             # Show login form that calls backend API directly
             # Instead of redirecting to enterprise backend, we show a form here
             return HTMLResponse(
@@ -485,6 +525,31 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
                 await session.commit()
                 logger.info(f'Created Discord user: {discord_username}')
 
+        # CRITICAL: Store enterprise offline token if user is logged in via cookie
+        # This allows the Discord bot to authenticate the user later
+        if keycloak_user_id:
+            try:
+                user_auth = await saas_user_auth_from_cookie(request)
+                if user_auth and user_auth.refresh_token:
+                    token_manager = TokenManager(external=True)
+                    refresh_token_value = user_auth.refresh_token.get_secret_value()
+                    await token_manager.store_offline_token(keycloak_user_id, refresh_token_value)
+                    logger.info(
+                        'discord_oauth_store_token',
+                        extra={
+                            'keycloak_user_id': keycloak_user_id,
+                            'discord_user_id': discord_user_id,
+                        }
+                    )
+            except Exception as e:
+                logger.error(
+                    'discord_oauth_token_storage_failed',
+                    extra={
+                        'keycloak_user_id': keycloak_user_id,
+                        'error': str(e),
+                    }
+                )
+
         if keycloak_user_id:
             return JSONResponse(
                 {
@@ -711,6 +776,17 @@ async def enterprise_callback(
     state: str = '',
     error: str = '',
 ):
+    logger.info(
+        'discord_enterprise_callback_received',
+        extra={
+            'has_code': bool(code),
+            'has_access_token': bool(access_token),
+            'has_refresh_token': bool(refresh_token),
+            'has_state': bool(state),
+            'has_error': bool(error),
+            'query_params': list(request.query_params.keys()),
+        }
+    )
     """Handle Enterprise OAuth callback and link Discord user to OpenHands user.
 
     This is the equivalent of keycloak-callback but for custom enterprise backend.
@@ -919,18 +995,50 @@ async def enterprise_callback(
 
         # CRITICAL FIX: Store enterprise tokens for future authentication
         # This is required for Discord bot to recognize the user on subsequent mentions
+        # Use refresh_token if available (longer lifetime), otherwise use access_token
+        token_to_store = refresh_token if refresh_token else access_token
+        logger.info(
+            'discord_enterprise_token_storage_start',
+            extra={
+                'user_id': user_id,
+                'discord_user_id': discord_user_id,
+                'access_token_present': bool(access_token),
+                'refresh_token_present': bool(refresh_token),
+                'token_to_store': 'refresh_token' if refresh_token else 'access_token',
+            }
+        )
         try:
             token_manager = TokenManager(external=True)
 
             # Decode JWT to get token expiration
-            token_payload = enterprise_client.decode_jwt(access_token, verify=False)
+            token_payload = enterprise_client.decode_jwt(token_to_store, verify=False)
             exp = token_payload.get('exp', 0)
-            from datetime import timezone
-            now = int(datetime.now(timezone.utc).timestamp())
-            expires_in = max(exp - now, 3600)  # Default to 1 hour if no exp claim
+            iat = token_payload.get('iat', 0)
+            from datetime import datetime as dt, timezone
+            now = int(dt.now(timezone.utc).timestamp())
+
+            # If no exp claim, default to 1 hour from iat (or now if no iat)
+            if exp == 0 and iat > 0:
+                exp = iat + 3600  # Default 1 hour from issued time
+            elif exp == 0:
+                exp = now + 3600  # Default 1 hour from now
+
+            expires_in = max(exp - now, 60)  # At least 1 minute
+
+            logger.info(
+                'discord_enterprise_token_debug',
+                extra={
+                    'user_id': user_id,
+                    'exp': exp,
+                    'iat': iat,
+                    'now': now,
+                    'expires_in': expires_in,
+                    'token_payload_keys': list(token_payload.keys()),
+                }
+            )
 
             # Store the tokens for offline use
-            await token_manager.store_offline_token(user_id, access_token)
+            await token_manager.store_offline_token(user_id, token_to_store)
             logger.info(
                 'discord_enterprise_tokens_stored',
                 extra={
@@ -940,9 +1048,14 @@ async def enterprise_callback(
                 }
             )
         except Exception as e:
+            import traceback
             logger.error(
                 'discord_enterprise_token_storage_failed',
-                extra={'user_id': user_id, 'error': str(e)},
+                extra={
+                    'user_id': user_id,
+                    'error': str(e),
+                    'traceback': traceback.format_exc(),
+                },
             )
 
         # Create response and set session cookie for OpenHands UI access

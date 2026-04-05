@@ -11,7 +11,29 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from openhands.sdk.utils.redact import sanitize_dict
+
+# Local implementation of sanitize_dict since it's not available in SDK 1.16.1
+def sanitize_dict(obj: Any, *, redact_keys: bool = True) -> Any:
+    """Recursively redact sensitive values from a dictionary.
+
+    Redacts values whose keys contain: KEY, SECRET, TOKEN, PASSWORD, CREDENTIAL.
+    """
+    if isinstance(obj, dict):
+        result: dict = {}
+        for key, value in obj.items():
+            key_upper = key.upper()
+            if redact_keys and any(
+                sensitive in key_upper
+                for sensitive in ('KEY', 'SECRET', 'TOKEN', 'PASSWORD', 'CREDENTIAL')
+            ):
+                result[key] = '<redacted>'
+            else:
+                result[key] = sanitize_dict(value, redact_keys=redact_keys)
+        return result
+    if isinstance(obj, list):
+        return [sanitize_dict(item, redact_keys=redact_keys) for item in obj]
+    return obj
+
 
 # ---------------------------------------------------------------------------
 # URL param redaction

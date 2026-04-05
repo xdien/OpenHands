@@ -64,6 +64,7 @@ export const useCreateConversationAndSubscribeMultiple = () => {
 
   // Effect to handle subscription when conversations are ready
   React.useEffect(() => {
+    if (!Array.isArray(conversationQueries)) return;
     conversationQueries.forEach((query, index) => {
       const conversationId = conversationIdsToWatch[index];
       const conversationData = createdConversations[conversationId];

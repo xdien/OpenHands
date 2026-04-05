@@ -40,16 +40,41 @@ class SaasSecretsStore(SecretsStore):
             if not settings:
                 return Secrets()
 
-            kwargs = {}
+            custom_secrets = {}
+            provider_tokens = {}
             for secret in settings:
-                kwargs[secret.secret_name] = {
+                secret_data = {
                     'secret': secret.secret_value,
                     'description': secret.description,
                 }
+                # Check if this is a provider token (stored with special prefix)
+                if secret.secret_name.startswith('provider_tokens:'):
+                    provider_type = secret.secret_name.replace('provider_tokens:', '')
+                    provider_tokens[provider_type] = secret_data
+                else:
+                    custom_secrets[secret.secret_name] = secret_data
 
-            self._decrypt_kwargs(kwargs)
+            self._decrypt_kwargs(custom_secrets)
+            self._decrypt_kwargs(provider_tokens)
 
-            return Secrets(custom_secrets=kwargs)  # type: ignore[arg-type]
+            # Convert to ProviderToken objects
+            from openhands.storage.data_models.secrets import ProviderToken
+            from pydantic import SecretStr
+            from types import MappingProxyType
+
+            provider_tokens_result = {}
+            for provider_type, token_data in provider_tokens.items():
+                if token_data.get('secret'):  # Only include if token exists
+                    provider_tokens_result[provider_type] = ProviderToken(
+                        token=SecretStr(token_data['secret']),
+                        user_id=None,
+                        host=None,
+                    )
+
+            return Secrets(
+                custom_secrets=custom_secrets,
+                provider_tokens=MappingProxyType(provider_tokens_result),
+            )  # type: ignore[arg-type]
 
     async def store(self, item: Secrets):
         user = await UserStore.get_user_by_id(self.user_id)
@@ -71,12 +96,12 @@ class SaasSecretsStore(SecretsStore):
 
             # Prepare the new secrets data
             kwargs = item.model_dump(context={'expose_secrets': True})
-            del kwargs[
-                'provider_tokens'
-            ]  # Assuming provider_tokens is not part of custom_secrets
+            # Keep provider_tokens in kwargs - they need to be stored too
+            # (previously incorrectly deleted - this was a bug)
             self._encrypt_kwargs(kwargs)
 
             secrets_json = kwargs.get('custom_secrets', {})
+            provider_tokens_json = kwargs.get('provider_tokens', {})
 
             # Extract the secrets into tuples for insertion or updating
             secret_tuples = []
@@ -85,6 +110,19 @@ class SaasSecretsStore(SecretsStore):
                 description = secret_info.get('description')
 
                 secret_tuples.append((secret_name, secret_value, description))
+
+            # Also store provider_tokens with special prefix
+            for provider_type, token_info in provider_tokens_json.items():
+                # token_info can be a string (when serialized with expose_secrets=True)
+                # or a dict (when serialized without expose_secrets)
+                if isinstance(token_info, str):
+                    secret_value = token_info
+                elif isinstance(token_info, dict):
+                    secret_value = token_info.get('token')
+                else:
+                    secret_value = None
+                if secret_value:  # Only store if token exists
+                    secret_tuples.append((f'provider_tokens:{provider_type}', secret_value, None))
 
             # Add the new secrets
             for secret_name, secret_value, description in secret_tuples:

@@ -454,8 +454,10 @@ function LlmSettingsScreen() {
   const formIsDirty = Object.values(dirtyInputs).some((isDirty) => isDirty);
 
   const getSecurityAnalyzerOptions = () => {
-    const analyzers = resources?.securityAnalyzers || [];
-    const orderedItems = [];
+    const analyzers = Array.isArray(resources?.securityAnalyzers)
+      ? resources.securityAnalyzers
+      : [];
+    const orderedItems: { key: string; label: string }[] = [];
 
     // Add LLM analyzer first
     if (analyzers.includes("llm")) {

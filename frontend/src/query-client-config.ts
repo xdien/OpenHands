@@ -8,7 +8,8 @@ import { displayErrorToast } from "./utils/custom-toast-handlers";
 const handle401Error = (error: AxiosError, queryClient: QueryClient) => {
   if (error?.response?.status === 401 || error?.status === 401) {
     // Clear the invalid session cookie
-    document.cookie = 'keycloak_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie =
+      "keycloak_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
 
     // Invalidate auth queries
     queryClient.invalidateQueries({ queryKey: ["user", "authenticated"] });
@@ -21,7 +22,10 @@ const handle401Error = (error: AxiosError, queryClient: QueryClient) => {
     const currentSearch = window.location.search;
 
     // Don't redirect if already on login page
-    if (!currentPath.includes('/login') && !currentPath.includes('/discord/login')) {
+    if (
+      !currentPath.includes("/login") &&
+      !currentPath.includes("/discord/login")
+    ) {
       // Store the current URL to redirect back after login
       const returnUrl = encodeURIComponent(currentPath + currentSearch);
       window.location.href = `/discord/login?return_to=${returnUrl}`;
