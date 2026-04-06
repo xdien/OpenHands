@@ -249,16 +249,12 @@ class SaasUserAuth(UserAuth):
         except Exception as e:
             import traceback
             # Safely extract token info without triggering SecretStr truthiness issues
-            access_token_value = self.access_token.get_secret_value() if isinstance(self.access_token, SecretStr) and self.access_token.get_secret_value() else None
-            refresh_token_value = self.refresh_token.get_secret_value() if isinstance(self.refresh_token, SecretStr) and self.refresh_token.get_secret_value() else None
             logger.warning('saas_user_auth_get_access_token_error', extra={
                 'user_id': self.user_id,
                 'error': str(e),
                 'traceback': traceback.format_exc(),
                 'access_token_type': type(self.access_token).__name__ if self.access_token is not None else None,
-                'access_token_value': access_token_value[:50] if access_token_value else None,
                 'refresh_token_type': type(self.refresh_token).__name__ if self.refresh_token is not None else None,
-                'refresh_token_value': refresh_token_value[:50] if refresh_token_value else None,
             })
             return None
 
@@ -538,13 +534,7 @@ async def saas_user_auth_from_signed_token(signed_token: str) -> SaasUserAuth:
     logger.debug('saas_user_auth_from_signed_token:decoded')
     access_token = decoded['access_token']
     refresh_token = decoded['refresh_token']
-    logger.debug(
-        'saas_user_auth_from_signed_token',
-        extra={
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-        },
-    )
+    logger.debug('saas_user_auth_from_signed_token')
     accepted_tos = decoded.get('accepted_tos')
 
     # The access token was encoded using HS256. Since we signed it, we can trust it was

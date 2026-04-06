@@ -185,7 +185,12 @@ class DockerRuntime(ActionExecutionClient):
                     f'Container {self.container_name} not found.',
                 )
                 raise AgentRuntimeDisconnectedError from e
-            self.maybe_build_runtime_container_image()
+            self.log(
+                'info',
+                'No existing runtime container found. Building runtime image... '
+                '(this may take a few minutes on first run)',
+            )
+            await call_sync_from_async(self.maybe_build_runtime_container_image)
             self.log(
                 'info', f'Starting runtime with image: {self.runtime_container_image}'
             )

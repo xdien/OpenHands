@@ -95,6 +95,11 @@ async def _run_bot(bot: commands.Bot, discord_manager) -> None:
             'user_msg': message.content,
         }
 
+        # DEBUG: Log the message payload for debugging
+        logger.info(
+            f'discord_gateway_bot: message payload: {message_payload}'
+        )
+
         msg = Message(source=SourceType.DISCORD, message=message_payload)
 
         # Process asynchronously so the gateway event loop is not blocked
