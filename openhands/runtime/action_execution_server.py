@@ -82,7 +82,7 @@ from openhands.runtime.utils.bash import BashSession
 from openhands.runtime.utils.files import insert_lines, read_lines
 from openhands.runtime.utils.memory_monitor import MemoryMonitor
 from openhands.runtime.utils.runtime_init import init_user_and_working_directory
-from openhands.utils.async_utils import call_sync_from_async, wait_all
+from openhands.utils.async_utils import call_sync_from_async
 
 if sys.platform == 'win32':
     from openhands.runtime.utils.windows_bash import WindowsPowershellSession
@@ -305,10 +305,20 @@ class ActionExecutor:
         self.browser_init_task = asyncio.create_task(self._init_browser_async())
         logger.debug('Browser initialization started in background')
 
-        await wait_all(
-            (self._init_plugin(plugin) for plugin in self.plugins_to_load),
-            timeout=int(os.environ.get('INIT_PLUGIN_TIMEOUT', '120')),
+        # DEBUG: Log which plugins are being initialized
+        logger.info(
+            f'Initializing {len(self.plugins_to_load)} plugins: {[p.name for p in self.plugins_to_load]}'
         )
+
+        for plugin in self.plugins_to_load:
+            logger.info(f'Starting initialization of plugin: {plugin.name}')
+            try:
+                await self._init_plugin(plugin)
+                logger.info(f'Successfully initialized plugin: {plugin.name}')
+            except Exception as e:
+                logger.error(f'Failed to initialize plugin {plugin.name}: {e}')
+                raise
+
         logger.debug('All plugins initialized')
 
         # This is a temporary workaround
@@ -335,14 +345,19 @@ class ActionExecutor:
 
     async def _init_plugin(self, plugin: Plugin):
         assert self.bash_session is not None
+        logger.info(f'_init_plugin: Starting {plugin.name}')
         # VSCode plugin needs runtime_id for path-based routing when using Gateway API
-        if isinstance(plugin, VSCodePlugin):
-            runtime_id = os.environ.get('RUNTIME_ID')
-            await plugin.initialize(self.username, runtime_id=runtime_id)
-        else:
-            await plugin.initialize(self.username)
-        self.plugins[plugin.name] = plugin
-        logger.debug(f'Initializing plugin: {plugin.name}')
+        try:
+            if isinstance(plugin, VSCodePlugin):
+                runtime_id = os.environ.get('RUNTIME_ID')
+                await plugin.initialize(self.username, runtime_id=runtime_id)
+            else:
+                await plugin.initialize(self.username)
+            self.plugins[plugin.name] = plugin
+            logger.info(f'_init_plugin: Completed {plugin.name}')
+        except Exception as e:
+            logger.error(f'_init_plugin: Failed {plugin.name}: {e}')
+            raise
 
         if isinstance(plugin, JupyterPlugin):
             # Escape backslashes in Windows path

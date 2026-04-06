@@ -191,7 +191,7 @@ class TokenManager:
             import jwt
             from enterprise.server.auth.constants import ENTERPRISE_AUTH_URL
 
-            logger.info('Keycloak is disabled, extracting user info from token directly')
+            logger.debug('Keycloak is disabled, extracting user info from token directly')
 
             # Decode the token without verification (we already verified it earlier)
             token_payload = jwt.decode(access_token, options={'verify_signature': False})
@@ -352,7 +352,7 @@ class TokenManager:
                     f'No tokens for user: {username}, identity provider: {idp}'
                 )
             access_token = self.decrypt_text(token_info['access_token'])
-            logger.info(f'Got {idp} token: {access_token[0:5]}')
+            logger.info(f'Got {idp} token')
             return access_token
         except httpx.HTTPStatusError as e:
             # Log the full response details including the body
