@@ -29,7 +29,14 @@ class ConversationValidator:
         conversation_id: str,
         cookies_str: str,
         authorization_header: str | None = None,
+        session_api_key: str | None = None,
     ) -> str | None:
+        from openhands.core.logger import openhands_logger as logger
+
+        logger.info(
+            'Base ConversationValidator.validate() called',
+            extra={'session_id': conversation_id},
+        )
         user_id = None
         metadata = await self._ensure_metadata_exists(conversation_id, user_id)
         return metadata.user_id

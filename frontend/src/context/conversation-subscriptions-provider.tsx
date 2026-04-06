@@ -202,15 +202,22 @@ export function ConversationSubscriptionsProvider({
       eventHandlersRef.current[conversationId] = handleOhEvent;
 
       try {
+        // Build query params - only include session_api_key if it's not null/undefined
+        const query: Record<string, string> = {
+          conversation_id: conversationId,
+          providers_set: providersSet.join(','),
+        };
+        // Note: sessionApiKey might be the string "null" from JSON serialization
+        if (sessionApiKey && sessionApiKey !== 'null' && sessionApiKey !== 'undefined') {
+          query.session_api_key = sessionApiKey;
+        }
+
         // Create socket connection
         const socket = io(baseUrl, {
           transports: ["websocket"],
           path: socketPath ?? "/socket.io",
-          query: {
-            conversation_id: conversationId,
-            session_api_key: sessionApiKey,
-            providers_set: providersSet,
-          },
+          query,
+          withCredentials: true, // Send cookies for authentication
           reconnection: true,
           reconnectionAttempts: 5,
           reconnectionDelay: 1000,
