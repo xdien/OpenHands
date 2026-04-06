@@ -626,7 +626,19 @@ class DiscordManager(Manager[DiscordViewInterface]):
                     f'[Discord] Created conversation {conversation_id} for user {user_info.discord_username}'
                 )
 
-                msg_info = discord_view.get_response_msg()
+                # Register callback processor to send results back to Discord
+                from server.conversation_callback_processor.discord_callback_processor import DiscordCallbackProcessor
+                processor = DiscordCallbackProcessor(
+                    discord_user_id=str(discord_view.discord_user_id),
+                    channel_id=int(discord_view.channel_id),
+                    message_id=int(discord_view.message_id),
+                    thread_id=int(discord_view.thread_id) if discord_view.thread_id else None,
+                    guild_id=int(discord_view.guild_id),
+                )
+                register_callback_processor(conversation_id, processor)
+                logger.info(
+                    f'[Discord] Registered callback processor for conversation {conversation_id}'
+                )
 
             except MissingSettingsError as e:
                 logger.warning(
@@ -648,6 +660,10 @@ class DiscordManager(Manager[DiscordViewInterface]):
 
             except StartingConvoException as e:
                 msg_info = str(e)
+
+            # If no message info was set (no exception), get the response message from the view
+            if msg_info is None:
+                msg_info = discord_view.get_response_msg()
 
             await self.send_message(msg_info, discord_view)
 
