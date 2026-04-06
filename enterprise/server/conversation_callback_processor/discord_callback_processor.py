@@ -4,23 +4,22 @@ This module processes events from OpenHands conversations and sends
 updates back to Discord channels.
 """
 
-import asyncio
-from uuid import UUID
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from integrations.utils import get_final_agent_observation
-from server.conversation_callback_processor.base_callback_processor import (
-    BaseCallbackProcessor,
-)
+from storage.conversation_callback import ConversationCallbackProcessor
 from server.logger import logger
 
 from openhands.core.schema.agent import AgentState
-from openhands.events.event import Event
 from openhands.events.observation.agent import AgentStateChangedObservation
-from openhands.events.observation.observation import Observation
-from openhands.server.shared import sio
+
+if TYPE_CHECKING:
+    from openhands.events.event import Event
 
 
-class DiscordCallbackProcessor(BaseCallbackProcessor):
+class DiscordCallbackProcessor(ConversationCallbackProcessor):
     """Processes conversation events and sends updates to Discord.
 
     This callback processor is registered when a new conversation is
@@ -28,91 +27,46 @@ class DiscordCallbackProcessor(BaseCallbackProcessor):
     relevant updates back to the Discord channel.
     """
 
-    def __init__(
-        self,
-        discord_user_id: str,
-        channel_id: int,
-        message_id: int,
-        thread_id: int | None,
-        guild_id: int,
-    ):
-        """Initialize the Discord callback processor.
-
-        Args:
-            discord_user_id: The Discord user ID
-            channel_id: The Discord channel ID
-            message_id: The original message ID
-            thread_id: The thread ID (if in a thread)
-            guild_id: The Discord guild (server) ID
-        """
-        self.discord_user_id = discord_user_id
-        self.channel_id = channel_id
-        self.message_id = message_id
-        self.thread_id = thread_id
-        self.guild_id = guild_id
-        self._finished = False
+    # Use class-level type annotations like Slack
+    discord_user_id: str
+    channel_id: int
+    message_id: int
+    thread_id: int | None
+    guild_id: int
+    _finished: bool = False
 
     async def __call__(
-        self, conversation_id: str, event: Event, event_dict: dict
+        self,
+        callback: 'ConversationCallback',
+        observation: 'AgentStateChangedObservation',
     ) -> None:
         """Process a conversation event.
 
         Args:
-            conversation_id: The conversation ID
-            event: The event object
-            event_dict: The event as a dictionary
+            callback: The conversation callback
+            observation: The AgentStateChangedObservation that triggered the callback
         """
+        conversation_id = callback.conversation_id
+
         # Skip if already finished
         if self._finished:
             return
 
         # Handle agent state changes
-        if isinstance(event, AgentStateChangedObservation):
-            await self._handle_agent_state_change(
-                conversation_id, event, event_dict
-            )
-
-        # Handle other observations that should be sent to Discord
-        elif isinstance(event, Observation):
-            await self._handle_observation(conversation_id, event, event_dict)
-
-    async def _handle_agent_state_change(
-        self, conversation_id: str, event: AgentStateChangedObservation, event_dict: dict
-    ) -> None:
-        """Handle agent state change events.
-
-        Args:
-            conversation_id: The conversation ID
-            event: The state change event
-            event_dict: The event as a dictionary
-        """
-        state = event.agent_state
+        state = observation.agent_state
         logger.info(
             f'[Discord] Agent state changed to {state} for conversation {conversation_id}'
         )
 
         if state == AgentState.FINISHED:
+            # Get the final message from the observation
+            event_dict = observation.model_dump() if hasattr(observation, 'model_dump') else {}
             await self._send_final_message(conversation_id, event_dict)
             self._finished = True
         elif state == AgentState.AWAITING_USER_INPUT:
             await self._send_awaiting_input_message(conversation_id)
         elif state == AgentState.RUNNING:
-            # Agent is working, maybe send a status update
             logger.info(f'[Discord] Agent is running for conversation {conversation_id}')
-
-    async def _handle_observation(
-        self, conversation_id: str, event: Observation, event_dict: dict
-    ) -> None:
-        """Handle observation events.
-
-        Args:
-            conversation_id: The conversation ID
-            event: The observation event
-            event_dict: The event as a dictionary
-        """
-        # Only send important observations to avoid spamming Discord
-        # This can be customized based on needs
-        pass
 
     async def _send_final_message(
         self, conversation_id: str, event_dict: dict
