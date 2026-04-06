@@ -6,6 +6,8 @@ GITHUB_APP_WEBHOOK_SECRET = os.getenv('GITHUB_APP_WEBHOOK_SECRET', '')
 GITHUB_APP_PRIVATE_KEY = os.getenv('GITHUB_APP_PRIVATE_KEY', '').replace('\\n', '\n')
 
 # Keycloak Configuration (default auth provider)
+# Set KEYCLOAK_ENABLE=false to disable Keycloak when using enterprise auth
+KEYCLOAK_ENABLE = os.getenv('KEYCLOAK_ENABLE', 'true').lower() in ('1', 'true', 'yes')
 KEYCLOAK_SERVER_URL = os.getenv('KEYCLOAK_SERVER_URL', '').rstrip('/')
 KEYCLOAK_REALM_NAME = os.getenv('KEYCLOAK_REALM_NAME', '')
 KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', '')

@@ -182,7 +182,43 @@ class TokenManager:
         Raises:
             KeycloakAuthenticationError: If the token is invalid
             ValidationError: If the response is missing the required 'sub' field
+            RuntimeError: If Keycloak is not enabled
         """
+        from enterprise.server.auth.keycloak_manager import is_keycloak_enabled
+
+        if not is_keycloak_enabled():
+            # For enterprise auth, extract user info from the token directly
+            import jwt
+            from enterprise.server.auth.constants import ENTERPRISE_AUTH_URL
+
+            logger.info('Keycloak is disabled, extracting user info from token directly')
+
+            # Decode the token without verification (we already verified it earlier)
+            token_payload = jwt.decode(access_token, options={'verify_signature': False})
+
+            # Support multiple user ID claim names
+            user_id = (
+                token_payload.get('sub') or
+                token_payload.get('userId') or
+                token_payload.get('user_id') or
+                token_payload.get('id')
+            )
+
+            if not user_id:
+                raise ValidationError('Token is missing user ID claim')
+
+            email = token_payload.get('email')
+
+            return KeycloakUserInfo(
+                sub=user_id,
+                email=email,
+                email_verified=token_payload.get('email_verified', True),
+                preferred_username=token_payload.get('preferred_username'),
+                given_name=token_payload.get('given_name'),
+                family_name=token_payload.get('family_name'),
+                name=token_payload.get('name'),
+            )
+
         user_info = await get_keycloak_openid(self.external).a_userinfo(access_token)
         # Pydantic validation will raise ValidationError if 'sub' is missing
         return KeycloakUserInfo.model_validate(user_info)
