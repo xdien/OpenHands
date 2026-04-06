@@ -22,7 +22,15 @@ from integrations.utils import (
     get_final_agent_observation,
 )
 from jinja2 import Environment
+from storage.discord_conversation import DiscordConversation
+from storage.discord_conversation_store import DiscordConversationStore
 from storage.discord_user import DiscordUser
+
+# Discord conversation store instance
+discord_conversation_store = DiscordConversationStore.get_instance()
+
+# Import conversation manager
+from openhands.server.shared import conversation_manager
 
 from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationStartRequest,
@@ -128,15 +136,23 @@ class DiscordNewConversationView(DiscordViewInterface):
                     'parent_id': self.thread_id or self.message_id,
                 },
             )
-            # TODO: Implement DiscordConversation store similar to SlackConversation
-            # discord_conversation = DiscordConversation(
-            #     conversation_id=self.conversation_id,
-            #     channel_id=self.channel_id,
-            #     keycloak_user_id=user_info.keycloak_user_id,
-            #     org_id=user_info.org_id,
-            #     parent_id=self.thread_id or self.message_id,
-            # )
-            # await discord_conversation_store.create_discord_conversation(discord_conversation)
+
+            # Save to database using store (with error handling)
+            try:
+                discord_conversation = DiscordConversation(
+                    conversation_id=self.conversation_id,
+                    keycloak_user_id=user_info.keycloak_user_id,
+                    discord_channel_id=str(self.channel_id),
+                    discord_thread_id=str(self.thread_id) if self.thread_id else None,
+                    discord_message_id=str(self.message_id),
+                    discord_guild_id=str(self.guild_id),
+                )
+                await discord_conversation_store.create_discord_conversation(discord_conversation)
+                logger.info(
+                    f'Saved discord conversation mapping: {self.conversation_id} -> channel {self.channel_id}, thread {self.thread_id}'
+                )
+            except Exception as e:
+                logger.warning(f'Failed to save discord conversation mapping: {e}')
 
     async def create_or_update_conversation(self, jinja: Environment) -> str:
         """Create a new conversation."""
@@ -186,7 +202,8 @@ class DiscordNewConversationView(DiscordViewInterface):
 
     def get_response_msg(self) -> str:
         """Get the response message to send back to Discord."""
-        return f"I'm working on your request! You can follow the conversation here: {CONVERSATION_URL}/{self.conversation_id}"
+        conversation_link = CONVERSATION_URL.format(self.conversation_id)
+        return f"I'm working on your request! You can follow the conversation here: {conversation_link}"
 
 
 @dataclass
@@ -214,33 +231,30 @@ class DiscordUpdateExistingConversationView(DiscordViewInterface):
 
     async def create_or_update_conversation(self, jinja: Environment) -> str:
         """Update an existing conversation with a new message."""
-        # Get the existing conversation
-        conversation_store = ConversationStoreImpl()
-        conversation = await conversation_store.get_conversation(self.conversation_id)
-
-        if not conversation:
-            raise StartingConvoException(
-                f'Conversation {self.conversation_id} not found'
-            )
-
-        # Send the follow-up message
+        # Send the follow-up message to existing conversation
         user_msg = self.user_msg
 
-        async with conversation_manager.attach_to_conversation(
-            self.conversation_id
-        ) as attached_conversation:
-            if attached_conversation:
-                msg_action = MessageAction(content=user_msg)
-                await attached_conversation.send_message(msg_action)
-                logger.info(
-                    f'[Discord]: Sent follow-up message to conversation {self.conversation_id}'
-                )
+        try:
+            msg_action = MessageAction(content=user_msg)
+            event_dict = event_to_dict(msg_action)
+            await conversation_manager.send_event_to_conversation(
+                self.conversation_id, event_dict
+            )
+            logger.info(
+                f'[Discord]: Sent follow-up message to conversation {self.conversation_id}'
+            )
+        except Exception as e:
+            logger.error(f'[Discord]: Failed to send message to conversation: {e}')
+            raise StartingConvoException(
+                f'Failed to send message to conversation: {str(e)}'
+            )
 
         return self.conversation_id
 
     def get_response_msg(self) -> str:
         """Get the response message."""
-        return f"Message received! Continuing the conversation here: {CONVERSATION_URL}/{self.conversation_id}"
+        conversation_link = CONVERSATION_URL.format(self.conversation_id)
+        return f"Message received! Continuing the conversation here: {conversation_link}"
 
 
 class DiscordFactory:
@@ -285,8 +299,30 @@ class DiscordFactory:
         user_msg = payload.get('user_msg', '')
         selected_repo = payload.get('selected_repo')
 
-        if conversation_id:
-            # Update existing conversation
+        # Get Discord identifiers from payload
+        channel_id = payload.get('channel_id')
+        thread_id = payload.get('thread_id')
+        message_id = payload.get('message_id')
+
+        # DEBUG: Log the conversation_id decision
+        from server.logger import logger
+        logger.info(
+            f'discord_factory: conversation_id from payload: {conversation_id}, thread_id: {thread_id}, message_id: {message_id}'
+        )
+
+        # Follow Slack pattern: determine if updating existing conversation
+        existing_discord_conversation = None
+        if channel_id or thread_id:
+            existing_discord_conversation = await discord_conversation_store.get_discord_conversation(
+                str(channel_id), str(thread_id) if thread_id else None
+            )
+            if existing_discord_conversation:
+                logger.info(
+                    f'discord_factory: Found existing conversation {existing_discord_conversation.conversation_id} for channel {channel_id}, thread {thread_id}'
+                )
+
+        if existing_discord_conversation:
+            # Update existing conversation (follow Slack pattern)
             return DiscordUpdateExistingConversationView(
                 bot_token='',  # Will be filled later
                 user_msg=user_msg,
@@ -299,7 +335,7 @@ class DiscordFactory:
                 selected_repo=selected_repo,
                 should_extract=True,
                 send_summary_instruction=False,
-                conversation_id=conversation_id,
+                conversation_id=existing_discord_conversation.conversation_id,
                 guild_id=int(payload.get('guild_id', 0)),
             )
         else:
