@@ -4,6 +4,7 @@ from server.auth.constants import (
     KEYCLOAK_ADMIN_PASSWORD,
     KEYCLOAK_CLIENT_ID,
     KEYCLOAK_CLIENT_SECRET,
+    KEYCLOAK_ENABLE,
     KEYCLOAK_REALM_NAME,
     KEYCLOAK_SERVER_URL,
     KEYCLOAK_SERVER_URL_EXT,
@@ -11,14 +12,26 @@ from server.auth.constants import (
 from server.logger import logger
 
 logger.debug(
-    f'KEYCLOAK_SERVER_URL:{KEYCLOAK_SERVER_URL}, KEYCLOAK_SERVER_URL_EXT:{KEYCLOAK_SERVER_URL_EXT}, KEYCLOAK_CLIENT_ID:{KEYCLOAK_CLIENT_ID}'
+    f'KEYCLOAK_SERVER_URL:{KEYCLOAK_SERVER_URL}, KEYCLOAK_SERVER_URL_EXT:{KEYCLOAK_SERVER_URL_EXT}, KEYCLOAK_CLIENT_ID:{KEYCLOAK_CLIENT_ID}, KEYCLOAK_ENABLE:{KEYCLOAK_ENABLE}'
 )
 
 _keycloak_instances = {}
 
 
+def is_keycloak_enabled() -> bool:
+    """Check if Keycloak is enabled."""
+    return KEYCLOAK_ENABLE and bool(KEYCLOAK_SERVER_URL)
+
+
 def get_keycloak_openid(external=False) -> KeycloakOpenID:
-    """Returns a singleton instance of KeycloakOpenID based on the 'external' flag."""
+    """Returns a singleton instance of KeycloakOpenID based on the 'external' flag.
+
+    Raises:
+        RuntimeError: If Keycloak is not enabled
+    """
+    if not is_keycloak_enabled():
+        raise RuntimeError('Keycloak is not enabled. Set KEYCLOAK_ENABLE=true to enable.')
+
     if external not in _keycloak_instances:
         _keycloak_instances[external] = KeycloakOpenID(
             server_url=KEYCLOAK_SERVER_URL_EXT if external else KEYCLOAK_SERVER_URL,
