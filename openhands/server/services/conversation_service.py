@@ -231,6 +231,18 @@ async def setup_init_conversation_settings(
     Returns:
         ConversationInitData with provider tokens configured
     """
+    logger.info(
+        f'setup_init_conversation_settings called with user_id={user_id}, conversation_id={conversation_id}',
+        extra={'session_id': conversation_id},
+    )
+    if user_id is None:
+        logger.error(
+            'setup_init_conversation_settings received None user_id - authentication likely failed',
+            extra={'session_id': conversation_id},
+        )
+        from socketio.exceptions import ConnectionRefusedError
+
+        raise ConnectionRefusedError('User not authenticated')
     settings_store = await SettingsStoreImpl.get_instance(config, user_id)
     settings = await settings_store.load()
 

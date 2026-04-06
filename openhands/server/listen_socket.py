@@ -54,8 +54,9 @@ async def connect(connection_id: str, environ: dict) -> None:
             )
             latest_event_id = -1
         conversation_id = query_params.get('conversation_id', [None])[0]
+        session_api_key = query_params.get('session_api_key', [None])[0]
         logger.info(
-            f'Socket request for conversation {conversation_id} with connection_id {connection_id}'
+            f'Socket request for conversation {conversation_id} with connection_id {connection_id}, session_api_key: {repr(session_api_key)}'
         )
         raw_list = query_params.get('providers_set', [])
         providers_list = []
@@ -72,15 +73,52 @@ async def connect(connection_id: str, environ: dict) -> None:
             raise ConnectionRefusedError('invalid_session_api_key')
 
         cookies_str = environ.get('HTTP_COOKIE', '')
+        # Mask sensitive data in cookies - only log cookie names, not values
+        cookie_names = (
+            '; '.join(c.split('=')[0] for c in cookies_str.split('; ') if c)
+            if cookies_str
+            else 'None'
+        )
+        logger.info(
+            f'Cookies received: {cookie_names}',
+            extra={'session_id': conversation_id},
+        )
         # Get Authorization header from the environment
         # Headers in WSGI/ASGI are prefixed with 'HTTP_' and have dashes replaced with underscores
         authorization_header = environ.get('HTTP_AUTHORIZATION', None)
-        conversation_validator = create_conversation_validator()
-        user_id = await conversation_validator.validate(
-            conversation_id, cookies_str, authorization_header
+        # Mask the token - only show type (e.g., "Bearer ")
+        auth_display = (
+            authorization_header.split(' ')[0] + ' ***'
+            if authorization_header
+            else 'None'
         )
         logger.info(
-            f'User {user_id} is allowed to connect to conversation {conversation_id}'
+            f'Authorization header: {auth_display}',
+            extra={'session_id': conversation_id},
+        )
+        conversation_validator = create_conversation_validator()
+        logger.info(
+            f'About to call conversation_validator.validate(), validator class: {conversation_validator.__class__.__name__}',
+            extra={'session_id': conversation_id},
+        )
+        try:
+            user_id = await conversation_validator.validate(
+                conversation_id, cookies_str, authorization_header, session_api_key
+            )
+            logger.info(
+                f'validate() returned: {user_id}',
+                extra={'session_id': conversation_id},
+            )
+        except Exception as e:
+            logger.error(
+                f'Exception in validate(): {e}',
+                extra={'session_id': conversation_id},
+                exc_info=True,
+            )
+            raise
+        logger.info(
+            f'User {user_id} is allowed to connect to conversation {conversation_id}',
+            extra={'session_id': conversation_id, 'user_id': user_id},
         )
 
         try:
