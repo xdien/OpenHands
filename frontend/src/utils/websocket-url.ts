@@ -66,7 +66,7 @@ export function buildHttpBaseUrl(
 }
 
 /**
- * Builds the WebSocket URL for V1 conversations (without query params)
+ * Builds the WebSocket URL for V1 conversations (Socket.IO)
  * @param conversationId The conversation ID
  * @param conversationUrl The conversation URL containing host/port (e.g., "http://localhost:3000/api/conversations/123")
  * @returns WebSocket URL or null if inputs are invalid
@@ -82,10 +82,10 @@ export function buildWebSocketUrl(
   const baseHost = extractBaseHost(conversationUrl);
   const pathPrefix = extractPathPrefix(conversationUrl);
 
-  // Build WebSocket URL: ws://host:port[/path-prefix]/sockets/events/{conversationId}
+  // Build Socket.IO URL: ws://host:port[/path-prefix]/socket.io
   // The path prefix (e.g., /runtime/55313) is needed for proxy deployments
   // Note: Query params should be passed via the useWebSocket hook options
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
-  return `${protocol}//${baseHost}${pathPrefix}/sockets/events/${conversationId}`;
+  return `${protocol}//${baseHost}${pathPrefix}/socket.io`;
 }
