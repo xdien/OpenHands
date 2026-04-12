@@ -404,8 +404,13 @@ class DiscordManager(Manager[DiscordViewInterface]):
         jwt_secret = config.jwt_secret
         if not jwt_secret:
             raise ValueError('Must configure jwt_secret')
+
+        # Add discord_username to state for proper display on login page
+        state_payload = dict(message.message)
+        state_payload['discord_username'] = message.message.get('discord_username', 'unknown')
+
         state = jwt.encode(
-            message.message, jwt_secret.get_secret_value(), algorithm='HS256'
+            state_payload, jwt_secret.get_secret_value(), algorithm='HS256'
         )
         # Return login URL with state
         return f'{HOST_URL}/discord/login?state={state}'
