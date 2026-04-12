@@ -84,6 +84,7 @@ async def _run_bot(bot: commands.Bot, discord_manager) -> None:
         # Build payload matching the format expected by DiscordManager
         message_payload = {
             'discord_user_id': str(message.author.id),
+            'discord_username': message.author.name,  # Discord username (new API)
             'channel_id': message.channel.id,
             'message_id': message.id,
             'thread_id': (
