@@ -32,6 +32,7 @@ from integrations.utils import (
 from integrations.v1_utils import get_saas_user_auth
 from jinja2 import Environment, FileSystemLoader
 from server.constants import DISCORD_BOT_TOKEN
+from server.conversation_callback_processor.discord_callback_processor import DiscordCallbackProcessor
 from server.utils.conversation_callback_utils import register_callback_processor
 from sqlalchemy import select
 from storage.database import a_session_maker
@@ -626,19 +627,26 @@ class DiscordManager(Manager[DiscordViewInterface]):
                     f'[Discord] Created conversation {conversation_id} for user {user_info.discord_username}'
                 )
 
-                # Register callback processor to send results back to Discord
-                from server.conversation_callback_processor.discord_callback_processor import DiscordCallbackProcessor
-                processor = DiscordCallbackProcessor(
-                    discord_user_id=str(discord_view.discord_user_id),
-                    channel_id=int(discord_view.channel_id),
-                    message_id=int(discord_view.message_id),
-                    thread_id=int(discord_view.thread_id) if discord_view.thread_id else None,
-                    guild_id=int(discord_view.guild_id),
-                )
-                register_callback_processor(conversation_id, processor)
-                logger.info(
-                    f'[Discord] Registered callback processor for conversation {conversation_id}'
-                )
+                # Only add DiscordCallbackProcessor for new conversations
+                # For existing conversations (created from Web UI), we cannot register callbacks
+                # because they may not exist in conversation_metadata table
+                if not isinstance(discord_view, DiscordUpdateExistingConversationView):
+                    processor = DiscordCallbackProcessor(
+                        discord_user_id=str(discord_view.discord_user_id),
+                        channel_id=int(discord_view.channel_id),
+                        message_id=int(discord_view.message_id),
+                        thread_id=int(discord_view.thread_id) if discord_view.thread_id else None,
+                        guild_id=int(discord_view.guild_id),
+                    )
+                    register_callback_processor(conversation_id, processor)
+                    logger.info(
+                        f'[Discord] Registered callback processor for new conversation {conversation_id}'
+                    )
+                else:
+                    logger.info(
+                        f'[Discord] Skipping callback processor for existing conversation {conversation_id} '
+                        f'(conversation was not created from Discord)'
+                    )
 
             except MissingSettingsError as e:
                 logger.warning(

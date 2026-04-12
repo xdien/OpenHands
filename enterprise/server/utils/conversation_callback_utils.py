@@ -81,6 +81,25 @@ async def invoke_conversation_callbacks(
         observation: The AgentStateChangedObservation that triggered the callback
     """
     async with a_session_maker() as session:
+        # First check ALL callbacks for this conversation (any status)
+        all_result = await session.execute(
+            select(ConversationCallback).filter(
+                ConversationCallback.conversation_id == conversation_id
+            )
+        )
+        all_callbacks = all_result.scalars().all()
+
+        logger.info(
+            'invoke_conversation_callbacks_all',
+            extra={
+                'conversation_id': conversation_id,
+                'total_callback_count': len(all_callbacks),
+                'all_callback_ids': [c.id for c in all_callbacks],
+                'all_statuses': [c.status.value for c in all_callbacks],
+                'all_processor_types': [c.processor_type for c in all_callbacks],
+            },
+        )
+
         result = await session.execute(
             select(ConversationCallback).filter(
                 and_(
@@ -90,6 +109,17 @@ async def invoke_conversation_callbacks(
             )
         )
         callbacks = result.scalars().all()
+
+        logger.info(
+            'invoke_conversation_callbacks',
+            extra={
+                'conversation_id': conversation_id,
+                'agent_state': observation.agent_state.value if hasattr(observation.agent_state, 'value') else str(observation.agent_state),
+                'active_callback_count': len(callbacks),
+                'callback_ids': [c.id for c in callbacks],
+                'processor_types': [c.processor_type for c in callbacks],
+            },
+        )
 
         for callback in callbacks:
             try:

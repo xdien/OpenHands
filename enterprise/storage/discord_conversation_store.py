@@ -60,6 +60,47 @@ class DiscordConversationStore:
         except Exception as e:
             logger.warning(f'Failed to create discord conversation: {e}')
 
+    async def remove_discord_conversation(
+        self, channel_id: str, thread_id: str | None = None
+    ) -> bool:
+        """Remove a discord conversation mapping.
+
+        Args:
+            channel_id: The Discord channel ID
+            thread_id: The Discord thread ID (optional)
+
+        Returns:
+            True if removed, False otherwise
+        """
+        try:
+            async with a_session_maker() as session:
+                # First try to find by thread_id if provided
+                if thread_id:
+                    stmt = select(DiscordConversation).where(
+                        DiscordConversation.discord_thread_id == thread_id
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalars().first()
+                    if existing:
+                        await session.delete(existing)
+                        await session.commit()
+                        return True
+
+                # Fall back to channel_id
+                stmt = select(DiscordConversation).where(
+                    DiscordConversation.discord_channel_id == channel_id
+                )
+                result = await session.execute(stmt)
+                existing = result.scalars().first()
+                if existing:
+                    await session.delete(existing)
+                    await session.commit()
+                    return True
+                return False
+        except Exception as e:
+            logger.warning(f'Failed to remove discord conversation: {e}')
+            return False
+
     @classmethod
     def get_instance(cls) -> 'DiscordConversationStore':
         return cls()
