@@ -661,10 +661,13 @@ class DiscordManager(Manager[DiscordViewInterface]):
                     f'[Discord] Created conversation {conversation_id} for user {user_info.discord_username}'
                 )
 
-                # Only add DiscordCallbackProcessor for new conversations
-                # For existing conversations (created from Web UI), we cannot register callbacks
-                # because they may not exist in conversation_metadata table
-                if not isinstance(discord_view, DiscordUpdateExistingConversationView):
+                # Only add DiscordCallbackProcessor for V0 conversations
+                # V1 conversations use their own callback processor (DiscordV1CallbackProcessor)
+                # which is registered in the V1 conversation creation flow
+                if (
+                    not isinstance(discord_view, DiscordUpdateExistingConversationView)
+                    and not discord_view.v1_enabled
+                ):
                     processor = DiscordCallbackProcessor(
                         discord_user_id=str(discord_view.discord_user_id),
                         channel_id=int(discord_view.channel_id),
