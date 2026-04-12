@@ -95,7 +95,7 @@ class MessagingService:
             return
 
         # Create integration based on provider type
-        allowed_user_ids = set(self.config.allowed_user_ids)
+        set(self.config.allowed_user_ids)
 
         # Telegram integration has been removed
         # The generic messaging service is no longer available
