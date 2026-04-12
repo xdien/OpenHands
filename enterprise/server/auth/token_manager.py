@@ -189,19 +189,22 @@ class TokenManager:
         if not is_keycloak_enabled():
             # For enterprise auth, extract user info from the token directly
             import jwt
-            from enterprise.server.auth.constants import ENTERPRISE_AUTH_URL
 
-            logger.debug('Keycloak is disabled, extracting user info from token directly')
+            logger.debug(
+                'Keycloak is disabled, extracting user info from token directly'
+            )
 
             # Decode the token without verification (we already verified it earlier)
-            token_payload = jwt.decode(access_token, options={'verify_signature': False})
+            token_payload = jwt.decode(
+                access_token, options={'verify_signature': False}
+            )
 
             # Support multiple user ID claim names
             user_id = (
-                token_payload.get('sub') or
-                token_payload.get('userId') or
-                token_payload.get('user_id') or
-                token_payload.get('id')
+                token_payload.get('sub')
+                or token_payload.get('userId')
+                or token_payload.get('user_id')
+                or token_payload.get('id')
             )
 
             if not user_id:

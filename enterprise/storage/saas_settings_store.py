@@ -87,7 +87,9 @@ class SaasSettingsStore(SettingsStore):
                 extra={
                     'user_id': self.user_id,
                     'org_id': str(org_id) if org_id else None,
-                    'org_members_count': len(user.org_members) if user.org_members else 0,
+                    'org_members_count': len(user.org_members)
+                    if user.org_members
+                    else 0,
                 },
             )
             return None
@@ -146,7 +148,10 @@ class SaasSettingsStore(SettingsStore):
     async def store(self, item: Settings):
         async with a_session_maker() as session:
             if not item:
-                logger.warning('saas_settings_store_store_empty_item', extra={'user_id': self.user_id})
+                logger.warning(
+                    'saas_settings_store_store_empty_item',
+                    extra={'user_id': self.user_id},
+                )
                 return None
             result = await session.execute(
                 select(User)
@@ -219,9 +224,7 @@ class SaasSettingsStore(SettingsStore):
             if item.llm_base_url == LITE_LLM_API_URL or (
                 not item.llm_base_url and is_openhands_model(item.llm_model)
             ):
-                await self._ensure_api_key(
-                    item, str(org_id), openhands_type=True
-                )
+                await self._ensure_api_key(item, str(org_id), openhands_type=True)
 
             kwargs = item.model_dump(context={'expose_secrets': True})
             for model in (user, org, org_member):

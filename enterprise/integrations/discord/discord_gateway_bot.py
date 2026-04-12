@@ -16,7 +16,6 @@ Usage:
 
 import asyncio
 import os
-import sys
 
 import discord
 from discord.ext import commands
@@ -31,7 +30,9 @@ DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
 def _create_bot() -> commands.Bot:
     """Create and configure the Discord bot with required intents."""
     intents = discord.Intents.default()
-    intents.message_content = True   # Required: Privileged Intent – must be enabled in Developer Portal
+    intents.message_content = (
+        True  # Required: Privileged Intent – must be enabled in Developer Portal
+    )
     intents.messages = True
     intents.guilds = True
     intents.members = False  # Not needed
@@ -43,7 +44,9 @@ def _create_bot() -> commands.Bot:
 async def _run_bot(bot: commands.Bot, discord_manager) -> None:
     """Run the Discord gateway bot, reconnecting on transient errors."""
     if not DISCORD_BOT_TOKEN:
-        logger.warning('discord_gateway_bot: DISCORD_BOT_TOKEN not set, gateway bot disabled')
+        logger.warning(
+            'discord_gateway_bot: DISCORD_BOT_TOKEN not set, gateway bot disabled'
+        )
         return
 
     @bot.event
@@ -68,6 +71,7 @@ async def _run_bot(bot: commands.Bot, discord_manager) -> None:
 
         # Import here to avoid circular imports at module load time
         from integrations.models import Message, SourceType
+
         from openhands.server.shared import sio
 
         # Deduplicate via Redis (same key as on_event webhook handler)
@@ -97,9 +101,7 @@ async def _run_bot(bot: commands.Bot, discord_manager) -> None:
         }
 
         # DEBUG: Log the message payload for debugging
-        logger.info(
-            f'discord_gateway_bot: message payload: {message_payload}'
-        )
+        logger.info(f'discord_gateway_bot: message payload: {message_payload}')
 
         msg = Message(source=SourceType.DISCORD, message=message_payload)
 
@@ -121,7 +123,9 @@ async def start_discord_gateway_bot() -> None:
     the ASGI lifespan startup handler.
     """
     if not DISCORD_BOT_TOKEN:
-        logger.warning('discord_gateway_bot: No DISCORD_BOT_TOKEN – gateway bot will not start')
+        logger.warning(
+            'discord_gateway_bot: No DISCORD_BOT_TOKEN – gateway bot will not start'
+        )
         return
 
     # Import here to avoid premature loading before .env is parsed
@@ -141,7 +145,9 @@ async def start_discord_gateway_bot() -> None:
             logger.error(f'discord_gateway_bot: login failed (check token): {e}')
             break  # Don't retry on auth failure
         except (discord.ConnectionClosed, discord.GatewayNotFound, OSError) as e:
-            logger.warning(f'discord_gateway_bot: connection lost ({e}), retrying in {retry_delay}s…')
+            logger.warning(
+                f'discord_gateway_bot: connection lost ({e}), retrying in {retry_delay}s…'
+            )
         except asyncio.CancelledError:
             logger.info('discord_gateway_bot: cancelled, shutting down')
             break

@@ -106,9 +106,11 @@ ENABLE_V1_GITLAB_RESOLVER = (
 # Get the absolute path to the templates directory
 # This file is at enterprise/integrations/utils.py
 # Go up 2 levels to enterprise/, then 1 more to OpenHands/, then into openhands/integrations/templates/resolver/
-OPENHANDS_RESOLVER_TEMPLATES_DIR = (
-    os.getenv('OPENHANDS_RESOLVER_TEMPLATES_DIR')
-    or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'openhands/integrations/templates/resolver/')
+OPENHANDS_RESOLVER_TEMPLATES_DIR = os.getenv(
+    'OPENHANDS_RESOLVER_TEMPLATES_DIR'
+) or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    'openhands/integrations/templates/resolver/',
 )
 jinja_env = Environment(loader=FileSystemLoader(OPENHANDS_RESOLVER_TEMPLATES_DIR))
 

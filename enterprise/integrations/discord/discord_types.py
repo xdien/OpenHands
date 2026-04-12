@@ -59,10 +59,7 @@ class DiscordMessageView:
         guild_id = payload.get('guild_id')
 
         # Channel ID can come from different places
-        channel_id = (
-            payload.get('channel_id')
-            or payload.get('channel', {}).get('id')
-        )
+        channel_id = payload.get('channel_id') or payload.get('channel', {}).get('id')
 
         # User ID
         user_id = (

@@ -13,20 +13,18 @@ from integrations.utils import (
     extract_summary_from_conversation_manager,
     get_last_user_msg_from_conversation_manager,
     get_summary_instruction,
-    append_conversation_footer,
 )
-from storage.conversation_callback import ConversationCallbackProcessor
 from server.logger import logger
+from storage.conversation_callback import ConversationCallbackProcessor
 
 from openhands.core.schema.agent import AgentState
 from openhands.events.action import MessageAction
-from openhands.events.event import Event
 from openhands.events.observation.agent import AgentStateChangedObservation
-from openhands.server.shared import conversation_manager
 from openhands.events.serialization.event import event_to_dict
+from openhands.server.shared import conversation_manager
 
 if TYPE_CHECKING:
-    from openhands.events.event import Event
+    pass
 
 
 class DiscordCallbackProcessor(ConversationCallbackProcessor):
@@ -71,13 +69,17 @@ class DiscordCallbackProcessor(ConversationCallbackProcessor):
 
         if state == AgentState.FINISHED:
             # Get the final message from the observation
-            event_dict = observation.model_dump() if hasattr(observation, 'model_dump') else {}
+            event_dict = (
+                observation.model_dump() if hasattr(observation, 'model_dump') else {}
+            )
             await self._send_final_message(conversation_id, event_dict)
             self._finished = True
         elif state == AgentState.AWAITING_USER_INPUT:
             await self._handle_awaiting_user_input(callback, conversation_id)
         elif state == AgentState.RUNNING:
-            logger.info(f'[Discord] Agent is running for conversation {conversation_id}')
+            logger.info(
+                f'[Discord] Agent is running for conversation {conversation_id}'
+            )
 
     async def _handle_awaiting_user_input(
         self,
@@ -136,7 +138,9 @@ class DiscordCallbackProcessor(ConversationCallbackProcessor):
             # Update the processor in the callback and save to database
             callback.set_processor(self)
 
-            logger.info(f'[Discord] Updated last_user_msg_id to {self.last_user_msg_id}')
+            logger.info(
+                f'[Discord] Updated last_user_msg_id to {self.last_user_msg_id}'
+            )
 
             if last_user_msg[0].content == summary_instruction:
                 # Extract the summary from the event store
@@ -150,7 +154,9 @@ class DiscordCallbackProcessor(ConversationCallbackProcessor):
                 # Send the summary to Discord
                 asyncio.create_task(self._send_discord_message(summary))
 
-                logger.info(f'[Discord] Summary sent for conversation {conversation_id}')
+                logger.info(
+                    f'[Discord] Summary sent for conversation {conversation_id}'
+                )
                 return
 
             # Add the summary instruction to the event stream
@@ -172,9 +178,7 @@ class DiscordCallbackProcessor(ConversationCallbackProcessor):
                 stack_info=True,
             )
 
-    async def _send_final_message(
-        self, conversation_id: str, event_dict: dict
-    ) -> None:
+    async def _send_final_message(self, conversation_id: str, event_dict: dict) -> None:
         """Send a final message when the conversation is complete.
 
         Args:
@@ -191,10 +195,12 @@ class DiscordCallbackProcessor(ConversationCallbackProcessor):
             )
 
             # Send to Discord with conversation footer
-            message = f"✅ Task completed!\n\n{summary}"
+            message = f'✅ Task completed!\n\n{summary}'
             await self._send_discord_message(message)
 
-            logger.info(f'[Discord] Final summary sent for conversation {conversation_id}')
+            logger.info(
+                f'[Discord] Final summary sent for conversation {conversation_id}'
+            )
         except Exception:
             logger.error(
                 '[Discord] Error sending final message',
@@ -227,15 +233,15 @@ class DiscordCallbackProcessor(ConversationCallbackProcessor):
         }
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json={'content': message}, headers=headers)
+                resp = await client.post(
+                    url, json={'content': message}, headers=headers
+                )
                 if resp.status_code not in (200, 201):
                     logger.error(
                         f'[Discord] Failed to send message: {resp.status_code} {resp.text[:200]}'
                     )
                 else:
-                    logger.info(
-                        f'[Discord] Message sent to channel {target_channel}'
-                    )
+                    logger.info(f'[Discord] Message sent to channel {target_channel}')
         except Exception as e:
             logger.error(f'[Discord] Exception sending message: {e}')
 

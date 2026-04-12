@@ -45,11 +45,11 @@ from server.routes.email import api_router as email_router  # noqa: E402
 from server.routes.event_webhook import event_webhook_router  # noqa: E402
 from server.routes.feedback import router as feedback_router  # noqa: E402
 from server.routes.github_proxy import add_github_proxy_routes  # noqa: E402
+from server.routes.integration.discord import discord_router  # noqa: E402
 from server.routes.integration.jira import jira_integration_router  # noqa: E402
 from server.routes.integration.jira_dc import jira_dc_integration_router  # noqa: E402
 from server.routes.integration.linear import linear_integration_router  # noqa: E402
 from server.routes.integration.slack import slack_router  # noqa: E402
-from server.routes.integration.discord import discord_router  # noqa: E402
 from server.routes.mcp_patch import patch_mcp_server  # noqa: E402
 from server.routes.oauth_device import oauth_device_router  # noqa: E402
 from server.routes.org_invitations import (  # noqa: E402
@@ -209,6 +209,7 @@ async def _discord_lifespan(app):
     task: asyncio.Task | None = None
     if os.getenv('DISCORD_BOT_TOKEN'):
         from integrations.discord.discord_gateway_bot import start_discord_gateway_bot
+
         task = asyncio.create_task(start_discord_gateway_bot())
 
     async with contextlib.AsyncExitStack() as stack:

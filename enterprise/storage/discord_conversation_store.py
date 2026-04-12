@@ -1,9 +1,10 @@
 """Discord conversation store for managing Discord conversation mappings."""
 
 import logging
+
+from sqlalchemy import select
 from storage.database import a_session_maker
 from storage.discord_conversation import DiscordConversation
-from sqlalchemy import select, text
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +37,11 @@ class DiscordConversationStore:
                         return existing
 
                 # Fall back to channel_id (get most recent)
-                stmt = select(DiscordConversation).where(
-                    DiscordConversation.discord_channel_id == channel_id
-                ).order_by(DiscordConversation.created_at.desc())
+                stmt = (
+                    select(DiscordConversation)
+                    .where(DiscordConversation.discord_channel_id == channel_id)
+                    .order_by(DiscordConversation.created_at.desc())
+                )
                 result = await session.execute(stmt)
                 return result.scalars().first()
         except Exception as e:

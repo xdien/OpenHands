@@ -21,18 +21,17 @@ Expected JWT payload:
 }
 """
 
-from typing import Optional
 import httpx
 import jwt
 from pydantic import BaseModel
-from server.logger import logger
-from server.config import get_config
 from server.auth.constants import (
+    ENTERPRISE_AUTH_JWT_PUBLIC_KEY,
+    ENTERPRISE_AUTH_JWT_SECRET,
     ENTERPRISE_AUTH_URL,
     ENTERPRISE_AUTH_URL_EXT,
-    ENTERPRISE_AUTH_JWT_SECRET,
-    ENTERPRISE_AUTH_JWT_PUBLIC_KEY,
 )
+from server.config import get_config
+from server.logger import logger
 
 # HTTP timeout for enterprise backend calls (in seconds)
 ENTERPRISE_AUTH_HTTP_TIMEOUT = 15.0
@@ -43,6 +42,7 @@ class EnterpriseUserInfo(BaseModel):
 
     Compatible with KeycloakUserInfo for seamless integration.
     """
+
     model_config = {'extra': 'allow'}
 
     sub: str
@@ -77,7 +77,9 @@ class EnterpriseAuthClient:
         """
         self.external = external
         self.base_url = ENTERPRISE_AUTH_URL_EXT if external else ENTERPRISE_AUTH_URL
-        self.jwt_secret = ENTERPRISE_AUTH_JWT_SECRET or get_config().jwt_secret.get_secret_value()
+        self.jwt_secret = (
+            ENTERPRISE_AUTH_JWT_SECRET or get_config().jwt_secret.get_secret_value()
+        )
         self.jwt_public_key = ENTERPRISE_AUTH_JWT_PUBLIC_KEY
 
     def _get_headers(self, access_token: str | None = None) -> dict:
@@ -107,7 +109,9 @@ class EnterpriseAuthClient:
             return None, None
 
         try:
-            async with httpx.AsyncClient(timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT) as client:
+            async with httpx.AsyncClient(
+                timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT
+            ) as client:
                 response = await client.post(
                     f'{self.base_url}/auth/token',
                     json={
@@ -119,7 +123,9 @@ class EnterpriseAuthClient:
                 )
 
                 if response.status_code != 200:
-                    logger.error(f'Enterprise auth token exchange failed: {response.status_code} - {response.text}')
+                    logger.error(
+                        f'Enterprise auth token exchange failed: {response.status_code} - {response.text}'
+                    )
                     return None, None
 
                 data = response.json()
@@ -157,7 +163,9 @@ class EnterpriseAuthClient:
             return None, None
 
         try:
-            async with httpx.AsyncClient(timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT) as client:
+            async with httpx.AsyncClient(
+                timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT
+            ) as client:
                 response = await client.post(
                     f'{self.base_url}/auth/login',
                     json={
@@ -168,7 +176,9 @@ class EnterpriseAuthClient:
                 )
 
                 if response.status_code != 200:
-                    logger.error(f'Enterprise auth login failed: {response.status_code} - {response.text}')
+                    logger.error(
+                        f'Enterprise auth login failed: {response.status_code} - {response.text}'
+                    )
                     return None, None
 
                 data = response.json()
@@ -210,7 +220,8 @@ class EnterpriseAuthClient:
                 sub=payload.get('sub', ''),
                 email=payload.get('email'),
                 email_verified=payload.get('email_verified', False),
-                preferred_username=payload.get('preferred_username') or payload.get('username'),
+                preferred_username=payload.get('preferred_username')
+                or payload.get('username'),
                 name=payload.get('name'),
                 given_name=payload.get('given_name'),
                 family_name=payload.get('family_name'),
@@ -284,7 +295,9 @@ class EnterpriseAuthClient:
             return None, None
 
         try:
-            async with httpx.AsyncClient(timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT) as client:
+            async with httpx.AsyncClient(
+                timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT
+            ) as client:
                 response = await client.post(
                     f'{self.base_url}/auth/refresh',
                     json={'refresh_token': refresh_token},
@@ -292,7 +305,9 @@ class EnterpriseAuthClient:
                 )
 
                 if response.status_code != 200:
-                    logger.error(f'Enterprise auth token refresh failed: {response.status_code}')
+                    logger.error(
+                        f'Enterprise auth token refresh failed: {response.status_code}'
+                    )
                     return None, None
 
                 data = response.json()
@@ -330,7 +345,9 @@ class EnterpriseAuthClient:
         # Optionally verify with backend
         if self.base_url:
             try:
-                async with httpx.AsyncClient(timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT) as client:
+                async with httpx.AsyncClient(
+                    timeout=ENTERPRISE_AUTH_HTTP_TIMEOUT
+                ) as client:
                     response = await client.get(
                         f'{self.base_url}/auth/verify',
                         headers=self._get_headers(access_token),

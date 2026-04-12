@@ -9,10 +9,7 @@ This module provides:
 
 from typing import Any
 
-from integrations.manager import Manager
-from integrations.models import Message, SourceType
 from integrations.discord.discord_errors import DiscordError, DiscordErrorCode
-from server.auth.auth_error import AuthError, ExpiredError
 from integrations.discord.discord_types import (
     DiscordMessageView,
     DiscordViewInterface,
@@ -23,6 +20,8 @@ from integrations.discord.discord_view import (
     DiscordNewConversationView,
     DiscordUpdateExistingConversationView,
 )
+from integrations.manager import Manager
+from integrations.models import Message, SourceType
 from integrations.utils import (
     HOST_URL,
     OPENHANDS_RESOLVER_TEMPLATES_DIR,
@@ -31,8 +30,11 @@ from integrations.utils import (
 )
 from integrations.v1_utils import get_saas_user_auth
 from jinja2 import Environment, FileSystemLoader
+from server.auth.auth_error import AuthError, ExpiredError
 from server.constants import DISCORD_BOT_TOKEN
-from server.conversation_callback_processor.discord_callback_processor import DiscordCallbackProcessor
+from server.conversation_callback_processor.discord_callback_processor import (
+    DiscordCallbackProcessor,
+)
 from server.utils.conversation_callback_utils import register_callback_processor
 from sqlalchemy import select
 from storage.database import a_session_maker
@@ -100,7 +102,11 @@ class DiscordManager(Manager[DiscordViewInterface]):
             discord_user = result.scalar_one_or_none()
 
             # Update discord_username if provided and different from DB
-            if discord_user and discord_username and discord_user.discord_username != discord_username:
+            if (
+                discord_user
+                and discord_username
+                and discord_user.discord_username != discord_username
+            ):
                 discord_user.discord_username = discord_username
                 await session.commit()
                 logger.info(
@@ -140,8 +146,12 @@ class DiscordManager(Manager[DiscordViewInterface]):
             extra={
                 'discord_user_id': discord_user_id,
                 'discord_user_found': discord_user is not None,
-                'discord_username': discord_user.discord_username if discord_user else None,
-                'keycloak_user_id': discord_user.keycloak_user_id if discord_user else None,
+                'discord_username': discord_user.discord_username
+                if discord_user
+                else None,
+                'keycloak_user_id': discord_user.keycloak_user_id
+                if discord_user
+                else None,
                 'saas_user_auth': saas_user_auth is not None,
             },
         )
@@ -305,8 +315,12 @@ class DiscordManager(Manager[DiscordViewInterface]):
             logger.info(
                 'discord_process_message_result',
                 extra={
-                    'discord_view_type': type(discord_view).__name__ if discord_view else None,
-                    'has_saas_user_auth': bool(discord_view.saas_user_auth) if discord_view else False,
+                    'discord_view_type': type(discord_view).__name__
+                    if discord_view
+                    else None,
+                    'has_saas_user_auth': bool(discord_view.saas_user_auth)
+                    if discord_view
+                    else False,
                 },
             )
 
@@ -336,7 +350,7 @@ class DiscordManager(Manager[DiscordViewInterface]):
             login_link = self._generate_login_link_with_state(message)
             await self._post_to_discord(
                 message.message['channel_id'],
-                f"⚠️ Your session has expired. Please re-authenticate to continue: {login_link}",
+                f'⚠️ Your session has expired. Please re-authenticate to continue: {login_link}',
             )
 
         except AuthError as e:
@@ -351,7 +365,7 @@ class DiscordManager(Manager[DiscordViewInterface]):
             login_link = self._generate_login_link_with_state(message)
             await self._post_to_discord(
                 message.message['channel_id'],
-                f"⚠️ Authentication required. Please re-authenticate to continue: {login_link}",
+                f'⚠️ Authentication required. Please re-authenticate to continue: {login_link}',
             )
 
         except Exception as e:
@@ -380,7 +394,7 @@ class DiscordManager(Manager[DiscordViewInterface]):
         """
         discord_user, saas_user_auth = await self.authenticate_user(
             discord_user_id=message.message['discord_user_id'],
-            discord_username=message.message.get('discord_username')
+            discord_username=message.message.get('discord_username'),
         )
 
         discord_view = await DiscordFactory.create_discord_view_from_payload(
@@ -412,17 +426,19 @@ class DiscordManager(Manager[DiscordViewInterface]):
 
         return discord_view
 
-
     def _generate_login_link_with_state(self, message: Message) -> str:
         """Generate OAuth login link with message state encoded."""
         import jwt
+
         jwt_secret = config.jwt_secret
         if not jwt_secret:
             raise ValueError('Must configure jwt_secret')
 
         # Add discord_username to state for proper display on login page
         state_payload = dict(message.message)
-        state_payload['discord_username'] = message.message.get('discord_username', 'unknown')
+        state_payload['discord_username'] = message.message.get(
+            'discord_username', 'unknown'
+        )
 
         state = jwt.encode(
             state_payload, jwt_secret.get_secret_value(), algorithm='HS256'
@@ -439,7 +455,9 @@ class DiscordManager(Manager[DiscordViewInterface]):
         """
         # Log the error
         log_level = (
-            'exception' if error.code == DiscordErrorCode.UNEXPECTED_ERROR else 'warning'
+            'exception'
+            if error.code == DiscordErrorCode.UNEXPECTED_ERROR
+            else 'warning'
         )
         log_data = {
             'error_code': error.code.value,
@@ -507,9 +525,7 @@ class DiscordManager(Manager[DiscordViewInterface]):
                         },
                     )
                 else:
-                    logger.info(
-                        f'discord_message_sent to channel {target_channel}'
-                    )
+                    logger.info(f'discord_message_sent to channel {target_channel}')
         except Exception as e:
             logger.error(f'discord_send_message_exception: {e}')
 
@@ -560,9 +576,7 @@ class DiscordManager(Manager[DiscordViewInterface]):
         )
 
         inferred_repos = infer_repo_from_message(user_msg)
-        logger.info(
-            f'[Discord] Inferred repos: {inferred_repos}'
-        )
+        logger.info(f'[Discord] Inferred repos: {inferred_repos}')
 
         if len(inferred_repos) != 1:
             logger.info(
@@ -655,7 +669,9 @@ class DiscordManager(Manager[DiscordViewInterface]):
                         discord_user_id=str(discord_view.discord_user_id),
                         channel_id=int(discord_view.channel_id),
                         message_id=int(discord_view.message_id),
-                        thread_id=int(discord_view.thread_id) if discord_view.thread_id else None,
+                        thread_id=int(discord_view.thread_id)
+                        if discord_view.thread_id
+                        else None,
                         guild_id=int(discord_view.guild_id),
                     )
                     register_callback_processor(conversation_id, processor)

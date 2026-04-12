@@ -109,7 +109,7 @@ class SaasConversationValidator(ConversationValidator):
             RuntimeError: If there is an error with the configuration or user info
         """
         logger.info(
-            f'SaasConversationValidator.validate() called',
+            'SaasConversationValidator.validate() called',
             extra={
                 'session_id': conversation_id,
                 'session_api_key': repr(session_api_key),
@@ -125,16 +125,24 @@ class SaasConversationValidator(ConversationValidator):
         # session_api_key is a session key generated from jwt_secret + conversation_id
         # It's deterministic, so we can validate by regenerating it
         # Note: frontend might send "null" string instead of actual null
-        if session_api_key and session_api_key != 'null' and session_api_key != 'undefined':
+        if (
+            session_api_key
+            and session_api_key != 'null'
+            and session_api_key != 'undefined'
+        ):
             logger.info(
                 f'Attempting session_api_key validation for conversation {conversation_id}',
-                extra={'session_id': conversation_id, 'has_session_api_key': bool(session_api_key)},
+                extra={
+                    'session_id': conversation_id,
+                    'has_session_api_key': bool(session_api_key),
+                },
             )
 
             # Validate session_api_key by regenerating it and comparing
-            from openhands.server.config.server_config import ServerConfig
             import hashlib
             from base64 import urlsafe_b64encode
+
+            from openhands.server.config.server_config import ServerConfig
 
             config = load_openhands_config()
             server_config = ServerConfig()
@@ -142,23 +150,30 @@ class SaasConversationValidator(ConversationValidator):
 
             # Regenerate expected session_api_key
             conversation_key = f'{jwt_secret}:{conversation_id}'.encode()
-            expected_session_api_key = urlsafe_b64encode(hashlib.sha256(conversation_key).digest()).decode()
+            expected_session_api_key = urlsafe_b64encode(
+                hashlib.sha256(conversation_key).digest()
+            ).decode()
 
             if session_api_key == expected_session_api_key:
                 # session_api_key is valid - now get user_id from conversation metadata
                 from openhands.server.shared import ConversationStoreImpl
-                conversation_store = await ConversationStoreImpl.get_instance(config, None)
+
+                conversation_store = await ConversationStoreImpl.get_instance(
+                    config, None
+                )
                 try:
                     metadata = await conversation_store.get_metadata(conversation_id)
                     if metadata and metadata.user_id:
                         logger.info(
                             f'User {metadata.user_id} is connecting to conversation {conversation_id} via session_api_key'
                         )
-                        await self._validate_conversation_access(conversation_id, metadata.user_id)
+                        await self._validate_conversation_access(
+                            conversation_id, metadata.user_id
+                        )
                         return metadata.user_id
                     else:
                         logger.warning(
-                            f'session_api_key valid but no user_id found in conversation metadata',
+                            'session_api_key valid but no user_id found in conversation metadata',
                             extra={'session_id': conversation_id},
                         )
                 except Exception as e:
@@ -168,8 +183,11 @@ class SaasConversationValidator(ConversationValidator):
                     )
             else:
                 logger.warning(
-                    f'session_api_key validation failed - key mismatch',
-                    extra={'session_id': conversation_id, 'expected_prefix': expected_session_api_key[:10]},
+                    'session_api_key validation failed - key mismatch',
+                    extra={
+                        'session_id': conversation_id,
+                        'expected_prefix': expected_session_api_key[:10],
+                    },
                 )
         else:
             logger.info(

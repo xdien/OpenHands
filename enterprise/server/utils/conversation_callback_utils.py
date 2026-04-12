@@ -114,7 +114,9 @@ async def invoke_conversation_callbacks(
             'invoke_conversation_callbacks',
             extra={
                 'conversation_id': conversation_id,
-                'agent_state': observation.agent_state.value if hasattr(observation.agent_state, 'value') else str(observation.agent_state),
+                'agent_state': observation.agent_state.value
+                if hasattr(observation.agent_state, 'value')
+                else str(observation.agent_state),
                 'active_callback_count': len(callbacks),
                 'callback_ids': [c.id for c in callbacks],
                 'processor_types': [c.processor_type for c in callbacks],

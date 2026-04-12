@@ -99,22 +99,39 @@ class SaasUserAuth(UserAuth):
     )
     async def refresh(self):
         # Safely check refresh_token without triggering SecretStr truthiness issues
-        refresh_token_value = self.refresh_token.get_secret_value() if isinstance(self.refresh_token, SecretStr) and self.refresh_token.get_secret_value() else None
+        refresh_token_value = (
+            self.refresh_token.get_secret_value()
+            if isinstance(self.refresh_token, SecretStr)
+            and self.refresh_token.get_secret_value()
+            else None
+        )
         logger.debug(
             'saas_user_auth_refresh_start',
             extra={
                 'user_id': self.user_id,
                 'has_refresh_token': self.refresh_token is not None,
-                'refresh_token_type': type(self.refresh_token).__name__ if self.refresh_token is not None else None,
-                'refresh_token_prefix': refresh_token_value[:50] if refresh_token_value else None,
+                'refresh_token_type': type(self.refresh_token).__name__
+                if self.refresh_token is not None
+                else None,
+                'refresh_token_prefix': refresh_token_value[:50]
+                if refresh_token_value
+                else None,
             },
         )
         if self.refresh_token is None:
-            logger.warning('saas_user_auth_refresh_no_token', extra={'user_id': self.user_id})
+            logger.warning(
+                'saas_user_auth_refresh_no_token', extra={'user_id': self.user_id}
+            )
             raise ExpiredError()
         # Check if refresh_token is a SecretStr
         if not hasattr(self.refresh_token, 'get_secret_value'):
-            logger.error('saas_user_auth_refresh_invalid_token_type', extra={'user_id': self.user_id, 'type': type(self.refresh_token).__name__})
+            logger.error(
+                'saas_user_auth_refresh_invalid_token_type',
+                extra={
+                    'user_id': self.user_id,
+                    'type': type(self.refresh_token).__name__,
+                },
+            )
             raise ExpiredError()
         if self._is_token_expired(self.refresh_token):
             logger.debug('saas_user_auth_refresh:expired')
@@ -122,6 +139,7 @@ class SaasUserAuth(UserAuth):
 
         # Check if enterprise auth is enabled
         from server.auth.constants import ENTERPRISE_AUTH_URL, ENTERPRISE_AUTH_URL_EXT
+
         logger.debug(
             'saas_user_auth_refresh_check_auth',
             extra={
@@ -141,7 +159,9 @@ class SaasUserAuth(UserAuth):
                 tokens['access_token'], options={'verify_signature': False}
             )
             # Support both standard 'sub' claim and enterprise 'userId' claim
-            self.user_id = access_token_payload.get('sub') or access_token_payload.get('userId')
+            self.user_id = access_token_payload.get('sub') or access_token_payload.get(
+                'userId'
+            )
             self.email = access_token_payload.get('email', '')
             self.email_verified = access_token_payload.get('email_verified', False)
 
@@ -153,7 +173,10 @@ class SaasUserAuth(UserAuth):
             return True
         # Handle non-SecretStr token
         if not hasattr(token, 'get_secret_value'):
-            logger.warning('saas_user_auth_is_token_expired_invalid_token_type', extra={'type': type(token).__name__})
+            logger.warning(
+                'saas_user_auth_is_token_expired_invalid_token_type',
+                extra={'type': type(token).__name__},
+            )
             return True
         # Decode token payload - works with both access and refresh tokens
         try:
@@ -161,14 +184,20 @@ class SaasUserAuth(UserAuth):
                 token.get_secret_value(), options={'verify_signature': False}
             )
         except Exception as e:
-            logger.error('saas_user_auth_is_token_expired_decode_error', extra={'error': str(e)})
+            logger.error(
+                'saas_user_auth_is_token_expired_decode_error', extra={'error': str(e)}
+            )
             return True
 
         # Sanity check - make sure we refer to current user
         # Support both 'sub' (Keycloak) and 'userId' (enterprise auth)
         token_user_id = payload.get('sub') or payload.get('userId')
         if token_user_id and token_user_id != self.user_id:
-            logger.warning('saas_user_auth_token_user_mismatch: expected=%s, got=%s', self.user_id, token_user_id)
+            logger.warning(
+                'saas_user_auth_token_user_mismatch: expected=%s, got=%s',
+                self.user_id,
+                token_user_id,
+            )
         # Don't assert - just log warning, as the token might still be valid
 
         # Check token expiration
@@ -181,7 +210,11 @@ class SaasUserAuth(UserAuth):
         # Support both 'sub' (Keycloak) and 'userId' (enterprise auth)
         token_user_id = payload.get('sub') or payload.get('userId')
         if token_user_id and token_user_id != self.user_id:
-            logger.warning('saas_user_auth_token_user_mismatch: expected=%s, got=%s', self.user_id, token_user_id)
+            logger.warning(
+                'saas_user_auth_token_user_mismatch: expected=%s, got=%s',
+                self.user_id,
+                token_user_id,
+            )
         # Don't assert - just log warning, as the token might still be valid
 
         # Check token expiration
@@ -230,32 +263,53 @@ class SaasUserAuth(UserAuth):
             if self.access_token is None or not self.access_token.get_secret_value():
                 # Check if we have a refresh token before trying to refresh
                 # Use isinstance check to avoid SecretStr truthiness issues
-                if self.refresh_token is None or not hasattr(self.refresh_token, 'get_secret_value'):
-                    logger.warning('saas_user_auth_get_access_token_no_refresh_token', extra={'user_id': self.user_id})
+                if self.refresh_token is None or not hasattr(
+                    self.refresh_token, 'get_secret_value'
+                ):
+                    logger.warning(
+                        'saas_user_auth_get_access_token_no_refresh_token',
+                        extra={'user_id': self.user_id},
+                    )
                     return None
                 await self.refresh()
             elif self._is_token_expired(self.access_token):
                 # Access token expired, try to refresh
-                if self.refresh_token is None or not hasattr(self.refresh_token, 'get_secret_value'):
-                    logger.warning('saas_user_auth_get_access_token_no_refresh_token', extra={'user_id': self.user_id})
+                if self.refresh_token is None or not hasattr(
+                    self.refresh_token, 'get_secret_value'
+                ):
+                    logger.warning(
+                        'saas_user_auth_get_access_token_no_refresh_token',
+                        extra={'user_id': self.user_id},
+                    )
                     return None
                 await self.refresh()
             return self.access_token
         except AuthError:
             raise
         except ExpiredError:
-            logger.warning('saas_user_auth_get_access_token_token_expired', extra={'user_id': self.user_id})
+            logger.warning(
+                'saas_user_auth_get_access_token_token_expired',
+                extra={'user_id': self.user_id},
+            )
             return None
         except Exception as e:
             import traceback
+
             # Safely extract token info without triggering SecretStr truthiness issues
-            logger.warning('saas_user_auth_get_access_token_error', extra={
-                'user_id': self.user_id,
-                'error': str(e),
-                'traceback': traceback.format_exc(),
-                'access_token_type': type(self.access_token).__name__ if self.access_token is not None else None,
-                'refresh_token_type': type(self.refresh_token).__name__ if self.refresh_token is not None else None,
-            })
+            logger.warning(
+                'saas_user_auth_get_access_token_error',
+                extra={
+                    'user_id': self.user_id,
+                    'error': str(e),
+                    'traceback': traceback.format_exc(),
+                    'access_token_type': type(self.access_token).__name__
+                    if self.access_token is not None
+                    else None,
+                    'refresh_token_type': type(self.refresh_token).__name__
+                    if self.refresh_token is not None
+                    else None,
+                },
+            )
             return None
 
     async def get_provider_tokens(self) -> PROVIDER_TOKEN_TYPE | None:
@@ -265,7 +319,10 @@ class SaasUserAuth(UserAuth):
         provider_tokens = {}
         access_token = await self.get_access_token()
         if not access_token:
-            logger.warning('saas_user_auth_get_provider_tokens_no_access_token', extra={'user_id': self.user_id})
+            logger.warning(
+                'saas_user_auth_get_provider_tokens_no_access_token',
+                extra={'user_id': self.user_id},
+            )
             return {}
 
         user_secrets = await self.get_secrets()
@@ -284,8 +341,10 @@ class SaasUserAuth(UserAuth):
                     extra={
                         'user_id': self.user_id,
                         'tokens_found': len(tokens),
-                        'token_providers': [t.identity_provider for t in tokens] if tokens else [],
-                    }
+                        'token_providers': [t.identity_provider for t in tokens]
+                        if tokens
+                        else [],
+                    },
                 )
 
             # Debug: Log user_secrets status
@@ -294,8 +353,10 @@ class SaasUserAuth(UserAuth):
                 extra={
                     'user_id': self.user_id,
                     'user_secrets_exists': user_secrets is not None,
-                    'user_secrets_provider_tokens': user_secrets.provider_tokens if user_secrets else None,
-                }
+                    'user_secrets_provider_tokens': user_secrets.provider_tokens
+                    if user_secrets
+                    else None,
+                },
             )
 
             # Fallback: Check user_secrets.provider_tokens if auth_tokens table is empty
@@ -306,7 +367,7 @@ class SaasUserAuth(UserAuth):
                     extra={
                         'user_id': self.user_id,
                         'fallback_providers': list(user_secrets.provider_tokens.keys()),
-                    }
+                    },
                 )
                 for idp_type, provider_token in user_secrets.provider_tokens.items():
                     if provider_token.token:
@@ -544,10 +605,10 @@ async def saas_user_auth_from_signed_token(signed_token: str) -> SaasUserAuth:
 
     # Support multiple user ID claim names
     user_id = (
-        access_token_payload.get('sub') or
-        access_token_payload.get('userId') or
-        access_token_payload.get('user_id') or
-        access_token_payload.get('id')
+        access_token_payload.get('sub')
+        or access_token_payload.get('userId')
+        or access_token_payload.get('user_id')
+        or access_token_payload.get('id')
     )
 
     if not user_id:

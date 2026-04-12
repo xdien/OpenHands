@@ -30,7 +30,9 @@ def get_keycloak_openid(external=False) -> KeycloakOpenID:
         RuntimeError: If Keycloak is not enabled
     """
     if not is_keycloak_enabled():
-        raise RuntimeError('Keycloak is not enabled. Set KEYCLOAK_ENABLE=true to enable.')
+        raise RuntimeError(
+            'Keycloak is not enabled. Set KEYCLOAK_ENABLE=true to enable.'
+        )
 
     if external not in _keycloak_instances:
         _keycloak_instances[external] = KeycloakOpenID(

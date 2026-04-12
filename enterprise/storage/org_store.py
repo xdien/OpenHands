@@ -5,6 +5,7 @@ Store class for managing organizations.
 from typing import Optional
 from uuid import UUID
 
+from pydantic import BaseModel
 from server.constants import (
     DEFAULT_V1_ENABLED,
     LITE_LLM_API_URL,
@@ -22,7 +23,6 @@ from storage.user import User
 from storage.user_settings import UserSettings
 
 from openhands.core.logger import openhands_logger as logger
-from pydantic import BaseModel
 from openhands.storage.data_models.settings import Settings
 
 

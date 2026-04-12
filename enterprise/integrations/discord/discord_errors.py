@@ -108,12 +108,12 @@ _USER_MESSAGES: dict[DiscordErrorCode, str] = {
     DiscordErrorCode.DISCORD_LINKED_NO_OPENHANDS: (
         '✅ Your Discord account **@{discord_username}** is already linked!\n\n'
         '⚠️ However, your OpenHands account is not connected yet.\n'
-        'To use the bot\'s full features, please click here to complete setup: '
+        "To use the bot's full features, please click here to complete setup: "
         '[🔗 Link OpenHands Account]({login_link})\n\n'
-        'Once linked, mention me again and I\'ll be ready to help! 🚀'
+        "Once linked, mention me again and I'll be ready to help! 🚀"
     ),
     DiscordErrorCode.REPO_NOT_FOUND: (
-        '🔍 I couldn\'t figure out which repository to work on.\n\n'
+        "🔍 I couldn't figure out which repository to work on.\n\n"
         'Please specify the repository in your message, for example:\n'
         '`@OpenHands fix the styling in user:repo`'
     ),

@@ -13,7 +13,9 @@ class DiscordUser(Base):  # type: ignore
     org_id = Column(UUID(as_uuid=True), ForeignKey('org.id'), nullable=True)
     discord_user_id = Column(String, nullable=False, index=True)
     discord_username = Column(String, nullable=False)
-    discord_discriminator = Column(String, nullable=True)  # Legacy discriminator (e.g., #1234)
+    discord_discriminator = Column(
+        String, nullable=True
+    )  # Legacy discriminator (e.g., #1234)
     created_at = Column(
         DateTime,
         server_default=text('CURRENT_TIMESTAMP'),

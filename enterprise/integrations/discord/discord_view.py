@@ -6,20 +6,21 @@ This module provides view classes for Discord integration:
 - DiscordFactory: Factory for creating views from payloads
 """
 
-import asyncio
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
-from integrations.models import Message
-from integrations.resolver_context import ResolverUserContext
 from integrations.discord.discord_types import (
     DiscordMessageView,
     DiscordViewInterface,
     StartingConvoException,
 )
+from integrations.discord.discord_v1_callback_processor import (
+    DiscordV1CallbackProcessor,
+)
+from integrations.models import Message
+from integrations.resolver_context import ResolverUserContext
 from integrations.utils import (
     CONVERSATION_URL,
-    get_final_agent_observation,
 )
 from jinja2 import Environment
 from storage.discord_conversation import DiscordConversation
@@ -31,32 +32,29 @@ from storage.saas_conversation_store import SaasConversationStore
 discord_conversation_store = DiscordConversationStore.get_instance()
 
 # Import conversation manager
-from openhands.server.shared import conversation_manager
+from server.config import get_config
 
 from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationStartRequest,
+    AppConversationStartTaskStatus,
     SendMessageRequest,
 )
 from openhands.app_server.config import get_app_conversation_service
-from server.config import get_config
-from openhands.app_server.sandbox.sandbox_models import SandboxStatus
 from openhands.app_server.services.injector import InjectorState
 from openhands.app_server.user.specifiy_user_context import USER_CONTEXT_ATTR
 from openhands.core.logger import openhands_logger as logger
-from openhands.core.schema.agent import AgentState
 from openhands.events.action import MessageAction
 from openhands.events.serialization.event import event_to_dict
-from openhands.integrations.provider import ProviderHandler, ProviderType
+from openhands.integrations.provider import ProviderHandler
 from openhands.sdk import TextContent
 from openhands.server.services.conversation_service import (
     start_conversation,
 )
-from openhands.server.shared import ConversationStoreImpl, config, conversation_manager
+from openhands.server.shared import conversation_manager
 from openhands.server.user_auth.user_auth import UserAuth
 from openhands.storage.data_models.conversation_metadata import (
     ConversationTrigger,
 )
-from openhands.utils.async_utils import GENERAL_TIMEOUT
 
 # =================================================
 # SECTION: Discord view types
@@ -122,8 +120,12 @@ class DiscordNewConversationView(DiscordViewInterface):
                 'Attempting to start conversation without confirming selected repo from user'
             )
 
-    async def save_discord_convo(self):
-        """Save the Discord conversation mapping."""
+    async def save_discord_convo(self, v1_enabled: bool = False):
+        """Save the Discord conversation mapping.
+
+        Args:
+            v1_enabled: Whether this is a V1 conversation (default False)
+        """
         if self.discord_to_openhands_user:
             user_info: DiscordUser = self.discord_to_openhands_user
 
@@ -148,7 +150,9 @@ class DiscordNewConversationView(DiscordViewInterface):
                     discord_message_id=str(self.message_id),
                     discord_guild_id=str(self.guild_id),
                 )
-                await discord_conversation_store.create_discord_conversation(discord_conversation)
+                await discord_conversation_store.create_discord_conversation(
+                    discord_conversation
+                )
                 logger.info(
                     f'Saved discord conversation mapping: {self.conversation_id} -> channel {self.channel_id}, thread {self.thread_id}'
                 )
@@ -159,12 +163,20 @@ class DiscordNewConversationView(DiscordViewInterface):
         """Create a new conversation."""
         self._verify_necessary_values_are_set()
 
-        provider_tokens = await self.saas_user_auth.get_provider_tokens()
-        user_secrets = await self.saas_user_auth.get_secrets()
+        # Check if V1 conversations are enabled for this user
+        # For now, enable V1 for all Discord users (can be made configurable)
+        self.v1_enabled = True
 
-        # Discord uses V0 conversation service for now
-        await self._create_v0_conversation(jinja, provider_tokens, user_secrets)
-        return self.conversation_id
+        if self.v1_enabled:
+            # Use V1 app conversation service
+            await self._create_v1_conversation(jinja)
+            return self.conversation_id
+        else:
+            # Use existing V0 conversation service
+            provider_tokens = await self.saas_user_auth.get_provider_tokens()
+            user_secrets = await self.saas_user_auth.get_secrets()
+            await self._create_v0_conversation(jinja, provider_tokens, user_secrets)
+            return self.conversation_id
 
     async def _create_v0_conversation(
         self, jinja: Environment, provider_tokens, user_secrets
@@ -193,11 +205,14 @@ class DiscordNewConversationView(DiscordViewInterface):
         )
 
         conversation_id = uuid4().hex
-        from openhands.storage.data_models.conversation_metadata import ConversationMetadata as OSSConversationMetadata
+        from openhands.storage.data_models.conversation_metadata import (
+            ConversationMetadata as OSSConversationMetadata,
+        )
+
         conversation_metadata = OSSConversationMetadata(
             trigger=ConversationTrigger.DISCORD,
             conversation_id=conversation_id,
-            title=f"Discord conversation {conversation_id[:8]}",
+            title=f'Discord conversation {conversation_id[:8]}',
             user_id=user_id,
             selected_repository=self.selected_repo,
             selected_branch=None,
@@ -209,7 +224,6 @@ class DiscordNewConversationView(DiscordViewInterface):
         logger.info(f'[Discord]: Created V0 conversation: {self.conversation_id}')
 
         # Start the conversation using start_conversation directly
-        from openhands.server.services.conversation_service import start_conversation
         await start_conversation(
             user_id=user_id,
             git_provider_tokens=provider_tokens,
@@ -225,6 +239,82 @@ class DiscordNewConversationView(DiscordViewInterface):
         )
 
         await self.save_discord_convo()
+
+    async def _create_v1_conversation(self, jinja: Environment) -> None:
+        """Create conversation using the new V1 app conversation system."""
+        user_instructions, conversation_instructions = await self._get_instructions(
+            jinja
+        )
+
+        # Create the initial message request
+        initial_message = SendMessageRequest(
+            role='user', content=[TextContent(text=user_instructions)]
+        )
+
+        # Create the Discord V1 callback processor
+        discord_callback_processor = self._create_discord_v1_callback_processor()
+
+        # Determine git provider from repository
+        git_provider = None
+        if self.selected_repo:
+            provider_tokens = await self.saas_user_auth.get_provider_tokens()
+            if provider_tokens:
+                provider_handler = ProviderHandler(provider_tokens)
+                repository = await provider_handler.verify_repo_provider(
+                    self.selected_repo
+                )
+                git_provider = repository.git_provider
+
+        # Get the app conversation service and start the conversation
+        injector_state = InjectorState()
+
+        # Create the V1 conversation start request with the callback processor
+        self.conversation_id = uuid4().hex
+        start_request = AppConversationStartRequest(
+            conversation_id=UUID(self.conversation_id),
+            system_message_suffix=conversation_instructions,
+            initial_message=initial_message,
+            selected_repository=self.selected_repo,
+            git_provider=git_provider,
+            title=f'Discord conversation {self.conversation_id[:8]}',
+            trigger=ConversationTrigger.DISCORD,
+            processors=[
+                discord_callback_processor
+            ],  # Pass the callback processor directly
+        )
+
+        # Set up the Discord user context for the V1 system
+        discord_user_context = ResolverUserContext(
+            saas_user_auth=self.saas_user_auth,
+            resolver_org_id=None,  # Can be added later if needed
+        )
+        setattr(injector_state, USER_CONTEXT_ATTR, discord_user_context)
+
+        async with get_app_conversation_service(
+            injector_state
+        ) as app_conversation_service:
+            async for task in app_conversation_service.start_app_conversation(
+                start_request
+            ):
+                if task.status == AppConversationStartTaskStatus.ERROR:
+                    logger.error(f'Failed to start V1 conversation: {task.detail}')
+                    raise RuntimeError(
+                        f'Failed to start V1 conversation: {task.detail}'
+                    )
+
+        logger.info(f'[Discord V1]: Created new conversation: {self.conversation_id}')
+        await self.save_discord_convo(v1_enabled=True)
+
+    def _create_discord_v1_callback_processor(self) -> DiscordV1CallbackProcessor:
+        """Create a DiscordV1CallbackProcessor for V1 conversation handling."""
+        return DiscordV1CallbackProcessor(
+            discord_view_data={
+                'channel_id': str(self.channel_id),
+                'thread_id': str(self.thread_id) if self.thread_id else None,
+                'conversation_id': self.conversation_id,
+                'discord_user_id': self.discord_user_id,
+            }
+        )
 
     def get_response_msg(self) -> str:
         """Get the response message to send back to Discord."""
@@ -280,7 +370,9 @@ class DiscordUpdateExistingConversationView(DiscordViewInterface):
     def get_response_msg(self) -> str:
         """Get the response message."""
         conversation_link = CONVERSATION_URL.format(self.conversation_id)
-        return f"Message received! Continuing the conversation here: {conversation_link}"
+        return (
+            f'Message received! Continuing the conversation here: {conversation_link}'
+        )
 
 
 class DiscordFactory:
@@ -332,6 +424,7 @@ class DiscordFactory:
 
         # DEBUG: Log the conversation_id decision
         from server.logger import logger
+
         logger.info(
             f'discord_factory: conversation_id from payload: {conversation_id}, thread_id: {thread_id}, message_id: {message_id}'
         )
@@ -339,8 +432,10 @@ class DiscordFactory:
         # Follow Slack pattern: determine if updating existing conversation
         existing_discord_conversation = None
         if channel_id or thread_id:
-            existing_discord_conversation = await discord_conversation_store.get_discord_conversation(
-                str(channel_id), str(thread_id) if thread_id else None
+            existing_discord_conversation = (
+                await discord_conversation_store.get_discord_conversation(
+                    str(channel_id), str(thread_id) if thread_id else None
+                )
             )
             if existing_discord_conversation:
                 logger.info(

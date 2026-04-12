@@ -17,33 +17,25 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response
 from integrations.discord.discord_manager import DiscordManager
 from integrations.models import Message, SourceType
 from integrations.utils import HOST_URL
-from server.auth.saas_user_auth import saas_user_auth_from_cookie
-from openhands.server.user_auth import get_user_id
-from server.auth.token_manager import TokenManager
-from server.routes.auth import set_response_cookie
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes
-import base64
-import jwt as pyjwt
 from server.auth.enterprise_auth_client import (
-    get_enterprise_auth_client,
-    is_enterprise_auth_enabled,
-    EnterpriseAuthClient,
     ENTERPRISE_AUTH_URL,
     ENTERPRISE_AUTH_URL_EXT,
+    get_enterprise_auth_client,
+    is_enterprise_auth_enabled,
 )
-from server.auth.constants import ENTERPRISE_AUTH_JWT_SECRET
+from server.auth.saas_user_auth import saas_user_auth_from_cookie
+from server.auth.token_manager import TokenManager
 from server.constants import (
     DISCORD_BOT_TOKEN,
     DISCORD_PUBLIC_KEY,
     DISCORD_WEBHOOKS_ENABLED,
 )
 from server.logger import logger
+from server.routes.auth import set_response_cookie
 from storage.database import a_session_maker
 
 from openhands.server.shared import sio
+from openhands.server.user_auth import get_user_id
 
 # Discord router with prefix
 discord_router = APIRouter(prefix='/discord')
@@ -97,12 +89,14 @@ async def discord_login(request: Request, state: str = ''):
     2. If user has no Discord link -> Send to Discord OAuth.
     3. If user has Discord link but no OpenHands session -> Send to auth provider (NestJS or Keycloak).
     """
-    from fastapi.responses import HTMLResponse
+    from urllib.parse import urlencode
+
     import jwt
-    from openhands.server.shared import config
+    from fastapi.responses import HTMLResponse
     from sqlalchemy import select
     from storage.discord_user import DiscordUser
-    from urllib.parse import urlencode
+
+    from openhands.server.shared import config
 
     # Decode target Discord context if state is present
     discord_user_id = None
@@ -113,8 +107,12 @@ async def discord_login(request: Request, state: str = ''):
                 state, config.jwt_secret.get_secret_value(), algorithms=['HS256']
             )
             # Support both message payload and simplified linking payload
-            discord_user_id = payload.get('discord_user_id') or payload.get('author', {}).get('id')
-            discord_username = payload.get('discord_username') or payload.get('author', {}).get('username', 'User')
+            discord_user_id = payload.get('discord_user_id') or payload.get(
+                'author', {}
+            ).get('id')
+            discord_username = payload.get('discord_username') or payload.get(
+                'author', {}
+            ).get('username', 'User')
         except Exception:
             pass
 
@@ -137,7 +135,9 @@ async def discord_login(request: Request, state: str = ''):
     if keycloak_user_id and discord_user_id and not is_enterprise_auth_enabled():
         async with a_session_maker() as session:
             result = await session.execute(
-                select(DiscordUser).where(DiscordUser.discord_user_id == str(discord_user_id))
+                select(DiscordUser).where(
+                    DiscordUser.discord_user_id == str(discord_user_id)
+                )
             )
             existing_user = result.scalar_one_or_none()
 
@@ -152,13 +152,15 @@ async def discord_login(request: Request, state: str = ''):
                     if user_auth and user_auth.refresh_token:
                         token_manager = TokenManager(external=True)
                         refresh_token_value = user_auth.refresh_token.get_secret_value()
-                        await token_manager.store_offline_token(keycloak_user_id, refresh_token_value)
+                        await token_manager.store_offline_token(
+                            keycloak_user_id, refresh_token_value
+                        )
                         logger.info(
                             'discord_link_success_store_token',
                             extra={
                                 'keycloak_user_id': keycloak_user_id,
                                 'discord_user_id': discord_user_id,
-                            }
+                            },
                         )
                 except Exception as e:
                     logger.error(
@@ -166,7 +168,7 @@ async def discord_login(request: Request, state: str = ''):
                         extra={
                             'keycloak_user_id': keycloak_user_id,
                             'error': str(e),
-                        }
+                        },
                     )
 
                 return HTMLResponse(
@@ -192,7 +194,7 @@ async def discord_login(request: Request, state: str = ''):
                 'is_enterprise_auth_enabled': enterprise_enabled,
                 'ENTERPRISE_AUTH_URL': ENTERPRISE_AUTH_URL,
                 'ENTERPRISE_AUTH_URL_EXT': ENTERPRISE_AUTH_URL_EXT,
-            }
+            },
         )
 
         # Check if Enterprise auth is enabled
@@ -357,12 +359,15 @@ async def discord_login(request: Request, state: str = ''):
             )
         else:
             # Fall back to Keycloak authentication
-            from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
-            from server.auth.keycloak_manager import get_keycloak_openid
+            from server.auth.constants import (
+                KEYCLOAK_CLIENT_ID,
+                KEYCLOAK_REALM_NAME,
+                KEYCLOAK_SERVER_URL_EXT,
+            )
 
             # Construct auth URL manually to avoid backend-to-frontend connection failures
             # (e.g. IPv6 / Cloudflare hairpinning issues)
-            base_auth_url = f"{KEYCLOAK_SERVER_URL_EXT}/realms/{KEYCLOAK_REALM_NAME}/protocol/openid-connect/auth"
+            base_auth_url = f'{KEYCLOAK_SERVER_URL_EXT}/realms/{KEYCLOAK_REALM_NAME}/protocol/openid-connect/auth'
 
             keycloak_state = state if state else 'discord_link'
             redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
@@ -372,9 +377,9 @@ async def discord_login(request: Request, state: str = ''):
                 'redirect_uri': redirect_uri,
                 'state': keycloak_state,
                 'response_type': 'code',
-                'scope': 'openid profile email'
+                'scope': 'openid profile email',
             }
-            auth_url = f"{base_auth_url}?{urlencode(params)}"
+            auth_url = f'{base_auth_url}?{urlencode(params)}'
 
             return RedirectResponse(auth_url)
 
@@ -414,16 +419,17 @@ async def install(state: str = ''):
 
 
 @discord_router.get('/install-callback')
-async def install_callback(request: Request, code: str = '', error: str = '', state: str = ''):
+async def install_callback(
+    request: Request, code: str = '', error: str = '', state: str = ''
+):
     """Handle Discord OAuth callback and link Discord user to OpenHands user."""
     import httpx
-    from server.constants import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
-    from openhands.server.shared import config
     import jwt
+    from server.constants import DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET
     from sqlalchemy import select
     from storage.discord_user import DiscordUser
-    from storage.user_store import UserStore
-    from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
+
+    from openhands.server.shared import config
 
     if error or not code:
         logger.warning(
@@ -533,13 +539,15 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
                 if user_auth and user_auth.refresh_token:
                     token_manager = TokenManager(external=True)
                     refresh_token_value = user_auth.refresh_token.get_secret_value()
-                    await token_manager.store_offline_token(keycloak_user_id, refresh_token_value)
+                    await token_manager.store_offline_token(
+                        keycloak_user_id, refresh_token_value
+                    )
                     logger.info(
                         'discord_oauth_store_token',
                         extra={
                             'keycloak_user_id': keycloak_user_id,
                             'discord_user_id': discord_user_id,
-                        }
+                        },
                     )
             except Exception as e:
                 logger.error(
@@ -547,7 +555,7 @@ async def install_callback(request: Request, code: str = '', error: str = '', st
                     extra={
                         'keycloak_user_id': keycloak_user_id,
                         'error': str(e),
-                    }
+                    },
                 )
 
         if keycloak_user_id:
@@ -587,13 +595,12 @@ async def keycloak_callback(
     error: str = '',
 ):
     """Handle Keycloak OAuth callback and link Discord user to OpenHands user."""
-    from urllib.parse import quote
-    from openhands.server.shared import config
     import jwt
     from sqlalchemy import select
     from storage.discord_user import DiscordUser
     from storage.user_store import UserStore
-    from server.auth.constants import KEYCLOAK_SERVER_URL_EXT, KEYCLOAK_REALM_NAME, KEYCLOAK_CLIENT_ID
+
+    from openhands.server.shared import config
 
     if not code or error:
         logger.warning(
@@ -630,9 +637,10 @@ async def keycloak_callback(
         # Get Keycloak tokens
         redirect_uri = f'{HOST_URL}/discord/keycloak-callback'
         token_manager = TokenManager(external=True)
-        keycloak_access_token, keycloak_refresh_token = await token_manager.get_keycloak_tokens(
-            code, redirect_uri
-        )
+        (
+            keycloak_access_token,
+            keycloak_refresh_token,
+        ) = await token_manager.get_keycloak_tokens(code, redirect_uri)
 
         if not keycloak_access_token or not keycloak_refresh_token:
             return JSONResponse(
@@ -643,7 +651,9 @@ async def keycloak_callback(
         # Get user info from Keycloak access token
         # We decode locally to avoid network hair-pinning issues (401/timeout when server calls itself)
         # We can trust the token because we just got it directly from Keycloak
-        token_payload = jwt.decode(keycloak_access_token, options={"verify_signature": False})
+        token_payload = jwt.decode(
+            keycloak_access_token, options={'verify_signature': False}
+        )
         keycloak_user_id = token_payload.get('sub')
 
         if not keycloak_user_id:
@@ -655,11 +665,15 @@ async def keycloak_callback(
         # Verify user exists in OpenHands
         user = await UserStore.get_user_by_id(keycloak_user_id)
         if not user:
-            logger.info(f'User {keycloak_user_id} not found in DB, creating from token info...')
+            logger.info(
+                f'User {keycloak_user_id} not found in DB, creating from token info...'
+            )
             # Construct user info from token payload for creation
             user_info_for_creation = {
                 'email': token_payload.get('email'),
-                'preferred_username': token_payload.get('preferred_username', discord_username),
+                'preferred_username': token_payload.get(
+                    'preferred_username', discord_username
+                ),
                 'given_name': token_payload.get('given_name'),
                 'family_name': token_payload.get('family_name'),
                 'email_verified': token_payload.get('email_verified', False),
@@ -667,18 +681,26 @@ async def keycloak_callback(
 
             # Ensure email is present (required by UserStore.create_user)
             if not user_info_for_creation['email']:
-                user_info_for_creation['email'] = f"{user_info_for_creation['preferred_username']}@local"
+                user_info_for_creation['email'] = (
+                    f"{user_info_for_creation['preferred_username']}@local"
+                )
 
             try:
-                user = await UserStore.create_user(keycloak_user_id, user_info_for_creation)
+                user = await UserStore.create_user(
+                    keycloak_user_id, user_info_for_creation
+                )
                 if not user:
                     return JSONResponse(
                         {'error': 'Failed to create OpenHands user record'},
                         status_code=500,
                     )
-                logger.info(f'Created new OpenHands user {keycloak_user_id} during Discord linking')
+                logger.info(
+                    f'Created new OpenHands user {keycloak_user_id} during Discord linking'
+                )
             except Exception as e:
-                logger.error(f'Error creating user {keycloak_user_id}: {e}', exc_info=True)
+                logger.error(
+                    f'Error creating user {keycloak_user_id}: {e}', exc_info=True
+                )
                 return JSONResponse(
                     {'error': 'Error creating user record', 'detail': str(e)},
                     status_code=500,
@@ -722,20 +744,24 @@ async def keycloak_callback(
         # This is required for Discord bot to recognize the user on subsequent mentions
         try:
             # Decode JWT to get token expiration
-            token_payload = jwt.decode(keycloak_access_token, options={"verify_signature": False})
+            token_payload = jwt.decode(
+                keycloak_access_token, options={'verify_signature': False}
+            )
             exp = token_payload.get('exp', 0)
             now = int(datetime.utcnow().timestamp())
             expires_in = max(exp - now, 3600)  # Default to 1 hour if no exp claim
 
             # Store the tokens for offline use
-            await token_manager.store_offline_token(keycloak_user_id, keycloak_refresh_token)
+            await token_manager.store_offline_token(
+                keycloak_user_id, keycloak_refresh_token
+            )
             logger.info(
                 'discord_keycloak_tokens_stored',
                 extra={
                     'user_id': keycloak_user_id,
                     'discord_user_id': discord_user_id,
                     'expires_in': expires_in,
-                }
+                },
             )
         except Exception as e:
             logger.error(
@@ -744,6 +770,7 @@ async def keycloak_callback(
             )
 
         from fastapi.responses import HTMLResponse
+
         return HTMLResponse(
             content=f"""
             <html><body style="background:#1a1a2e;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;">
@@ -756,7 +783,7 @@ async def keycloak_callback(
             <p style="color:#9aa5b4;font-size:14px;">(You can close this window now)</p>
             </div></body></html>
             """,
-            status_code=200
+            status_code=200,
         )
 
     except Exception as e:
@@ -785,7 +812,7 @@ async def enterprise_callback(
             'has_state': bool(state),
             'has_error': bool(error),
             'query_params': list(request.query_params.keys()),
-        }
+        },
     )
     """Handle Enterprise OAuth callback and link Discord user to OpenHands user.
 
@@ -794,13 +821,12 @@ async def enterprise_callback(
     - code: OAuth2 authorization code flow (legacy)
     - access_token: Direct token from login form (new flow)
     """
-    from urllib.parse import quote
-    from openhands.server.shared import config
     import jwt
     from sqlalchemy import select
     from storage.discord_user import DiscordUser
     from storage.user_store import UserStore
-    from fastapi.responses import HTMLResponse
+
+    from openhands.server.shared import config
 
     # Check for error
     if error:
@@ -817,7 +843,11 @@ async def enterprise_callback(
     if not code and not access_token:
         logger.warning(
             'discord_enterprise_callback_error',
-            extra={'code': code, 'state': state, 'error': 'No code or access_token provided'},
+            extra={
+                'code': code,
+                'state': state,
+                'error': 'No code or access_token provided',
+            },
         )
         return JSONResponse(
             {'error': 'No authorization code or access token provided'},
@@ -903,10 +933,10 @@ async def enterprise_callback(
             )
 
         user_id = (
-            token_payload.get('sub') or
-            token_payload.get('userId') or
-            token_payload.get('user_id') or
-            token_payload.get('id')
+            token_payload.get('sub')
+            or token_payload.get('userId')
+            or token_payload.get('user_id')
+            or token_payload.get('id')
         )
 
         if not user_id:
@@ -927,17 +957,17 @@ async def enterprise_callback(
             # Extract user info from token with fallbacks
             # Your token has: userId, type, roles, iat (no email or username)
             preferred_username = (
-                token_payload.get('preferred_username') or
-                token_payload.get('username') or
-                token_payload.get('userId') or
-                discord_username or
-                'user'
+                token_payload.get('preferred_username')
+                or token_payload.get('username')
+                or token_payload.get('userId')
+                or discord_username
+                or 'user'
             )
 
             # Ensure email is always a valid string (UserStore.create_user requires it)
             email = token_payload.get('email')
             if not email or not isinstance(email, str) or not email.strip():
-                email = f"{preferred_username}@local"
+                email = f'{preferred_username}@local'
 
             user_info_for_creation = {
                 'email': email.strip(),
@@ -954,7 +984,9 @@ async def enterprise_callback(
                         {'error': 'Failed to create OpenHands user record'},
                         status_code=500,
                     )
-                logger.info(f'Created new OpenHands user {user_id} during Discord linking')
+                logger.info(
+                    f'Created new OpenHands user {user_id} during Discord linking'
+                )
             except Exception as e:
                 logger.error(f'Error creating user {user_id}: {e}', exc_info=True)
                 return JSONResponse(
@@ -991,7 +1023,9 @@ async def enterprise_callback(
             else:
                 # No discord_user_id from state - this is a direct login flow
                 # Just create the user without linking to Discord
-                logger.info(f'No discord_user_id in state, user created without Discord link')
+                logger.info(
+                    'No discord_user_id in state, user created without Discord link'
+                )
 
         # CRITICAL FIX: Store enterprise tokens for future authentication
         # This is required for Discord bot to recognize the user on subsequent mentions
@@ -1005,7 +1039,7 @@ async def enterprise_callback(
                 'access_token_present': bool(access_token),
                 'refresh_token_present': bool(refresh_token),
                 'token_to_store': 'refresh_token' if refresh_token else 'access_token',
-            }
+            },
         )
         try:
             token_manager = TokenManager(external=True)
@@ -1014,7 +1048,9 @@ async def enterprise_callback(
             token_payload = enterprise_client.decode_jwt(token_to_store, verify=False)
             exp = token_payload.get('exp', 0)
             iat = token_payload.get('iat', 0)
-            from datetime import datetime as dt, timezone
+            from datetime import datetime as dt
+            from datetime import timezone
+
             now = int(dt.now(timezone.utc).timestamp())
 
             # If no exp claim, default to 1 hour from iat (or now if no iat)
@@ -1034,7 +1070,7 @@ async def enterprise_callback(
                     'now': now,
                     'expires_in': expires_in,
                     'token_payload_keys': list(token_payload.keys()),
-                }
+                },
             )
 
             # Store the tokens for offline use
@@ -1045,10 +1081,11 @@ async def enterprise_callback(
                     'user_id': user_id,
                     'discord_user_id': discord_user_id,
                     'expires_in': expires_in,
-                }
+                },
             )
         except Exception as e:
             import traceback
+
             logger.error(
                 'discord_enterprise_token_storage_failed',
                 extra={
@@ -1073,7 +1110,7 @@ async def enterprise_callback(
             </div></body></html>
             """,
             status_code=200,
-            media_type='text/html'
+            media_type='text/html',
         )
 
         # Set session cookie so user can access /api/settings and other authenticated endpoints

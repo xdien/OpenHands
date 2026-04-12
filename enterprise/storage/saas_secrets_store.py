@@ -58,9 +58,11 @@ class SaasSecretsStore(SecretsStore):
             self._decrypt_kwargs(provider_tokens)
 
             # Convert to ProviderToken objects
-            from openhands.storage.data_models.secrets import ProviderToken
-            from pydantic import SecretStr
             from types import MappingProxyType
+
+            from pydantic import SecretStr
+
+            from openhands.storage.data_models.secrets import ProviderToken
 
             provider_tokens_result = {}
             for provider_type, token_data in provider_tokens.items():
@@ -122,7 +124,9 @@ class SaasSecretsStore(SecretsStore):
                 else:
                     secret_value = None
                 if secret_value:  # Only store if token exists
-                    secret_tuples.append((f'provider_tokens:{provider_type}', secret_value, None))
+                    secret_tuples.append(
+                        (f'provider_tokens:{provider_type}', secret_value, None)
+                    )
 
             # Add the new secrets
             for secret_name, secret_value, description in secret_tuples:
