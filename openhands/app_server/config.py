@@ -134,8 +134,6 @@ def _get_default_lifespan():
 
 
 class AppServerConfig(OpenHandsModel):
-    model_config = {'arbitrary_types_allowed': True}
-
     persistence_dir: Path = Field(default_factory=get_default_persistence_dir)
     web_url: str | None = Field(
         default_factory=get_default_web_url,
@@ -171,12 +169,13 @@ class AppServerConfig(OpenHandsModel):
         )
     )
     # Messaging Service Injector (optional - only available if messaging module is installed)
-    messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
-        default=None, description='Messaging interface configuration'
-    )
-    messaging_service: 'MessagingServiceInjectorBase | None' = Field(  # type: ignore[valid-type]
-        default=None, description='Messaging service injector'
-    )
+    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
+    # messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
+    #     default=None, description='Messaging interface configuration'
+    # )
+    # messaging_service: 'MessagingServiceInjectorBase | None' = Field(  # type: ignore[valid-type]
+    #     default=None, description='Messaging service injector'
+    # )
     # Services
     lifespan: AppLifespanService | None = Field(default_factory=_get_default_lifespan)
     app_mode: AppMode = AppMode.OPENHANDS
@@ -352,16 +351,17 @@ def config_from_env() -> AppServerConfig:
         config.jwt = JwtServiceInjector(persistence_dir=config.persistence_dir)
 
     # Configure messaging if enabled
-    if config.messaging is not None and config.messaging.enabled:
-        if not MESSAGING_AVAILABLE:
-            raise RuntimeError(
-                'Messaging is enabled but the messaging module is not available. '
-                'Please install the required dependencies: pip install python-telegram-bot'
-            )
-        if config.messaging_service is None:
-            config.messaging_service = MessagingServiceInjectorBase(
-                config=config.messaging
-            )
+    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
+    # if config.messaging is not None and config.messaging.enabled:
+    #     if not MESSAGING_AVAILABLE:
+    #         raise RuntimeError(
+    #             'Messaging is enabled but the messaging module is not available. '
+    #             'Please install the required dependencies: pip install python-telegram-bot'
+    #         )
+    #     if config.messaging_service is None:
+    #         config.messaging_service = MessagingServiceInjectorBase(
+    #             config=config.messaging
+    #         )
 
     return config
 
@@ -555,16 +555,11 @@ def get_messaging_service(
     Raises:
         RuntimeError: If messaging service is not configured
     """
-
-    injector = get_global_config().messaging_service
-    if injector is None:
-        raise RuntimeError('Messaging service not configured')
-    return injector.context(state, request)
+    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
+    raise RuntimeError('Messaging service is temporarily disabled')
 
 
 def depends_messaging_service():
     """Dependency injection for messaging service."""
-    injector = get_global_config().messaging_service
-    if injector is None:
-        raise RuntimeError('Messaging service not configured')
-    return Depends(injector.depends)
+    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
+    raise RuntimeError('Messaging service is temporarily disabled')
