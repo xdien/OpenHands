@@ -6,7 +6,7 @@ from typing import AsyncContextManager
 
 import httpx
 from fastapi import Depends, Request
-from pydantic import Field, SecretStr
+from pydantic import ConfigDict, Field, PrivateAttr, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import the event_callback module to ensure all processors are registered
@@ -75,6 +75,19 @@ except ImportError:
     MessagingServiceInjectorBase = None  # type: ignore[misc,assignment]
     MESSAGING_AVAILABLE = False
 
+# Optional messaging module imports - only required if messaging is enabled
+try:
+    from openhands.messaging.config import MessagingConfig
+    from openhands.messaging.messaging_service import (
+        MessagingServiceInjector as MessagingServiceInjectorBase,
+    )
+
+    MESSAGING_AVAILABLE = True
+except ImportError:
+    MessagingConfig = None  # type: ignore[misc,assignment]
+    MessagingServiceInjectorBase = None  # type: ignore[misc,assignment]
+    MESSAGING_AVAILABLE = False
+
 
 def get_default_persistence_dir() -> Path:
     # Recheck env because this function is also used to generate other defaults
@@ -118,11 +131,8 @@ def get_default_permitted_cors_origins() -> list[str]:
 
 
 def get_openhands_provider_base_url() -> str | None:
-    """Return the base URL for the OpenHands provider, if configured.
-
-    Falls back to LLM_BASE_URL for backward compatibility.
-    """
-    return os.getenv('OPENHANDS_PROVIDER_BASE_URL') or os.getenv('LLM_BASE_URL') or None
+    """Return the base URL for the OpenHands provider, if configured."""
+    return os.getenv('OPENHANDS_PROVIDER_BASE_URL') or None
 
 
 def _get_default_lifespan():
@@ -134,6 +144,7 @@ def _get_default_lifespan():
 
 
 class AppServerConfig(OpenHandsModel):
+    model_config = ConfigDict(extra='forbid', arbitrary_types_allowed=True)
     persistence_dir: Path = Field(default_factory=get_default_persistence_dir)
     web_url: str | None = Field(
         default_factory=get_default_web_url,
@@ -169,13 +180,21 @@ class AppServerConfig(OpenHandsModel):
         )
     )
     # Messaging Service Injector (optional - only available if messaging module is installed)
-    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
-    # messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
-    #     default=None, description='Messaging interface configuration'
-    # )
-    # messaging_service: 'MessagingServiceInjectorBase | None' = Field(  # type: ignore[valid-type]
-    #     default=None, description='Messaging service injector'
-    # )
+    messaging: 'MessagingConfig | None' = Field(  # type: ignore[valid-type]
+        default=None, description='Messaging interface configuration'
+    )
+    _messaging_service: 'MessagingServiceInjectorBase | None' = PrivateAttr(
+        default=None
+    )
+
+    @property
+    def messaging_service(self) -> 'MessagingServiceInjectorBase | None':
+        return self._messaging_service
+
+    @messaging_service.setter
+    def messaging_service(self, value: 'MessagingServiceInjectorBase | None'):
+        self._messaging_service = value
+
     # Services
     lifespan: AppLifespanService | None = Field(default_factory=_get_default_lifespan)
     app_mode: AppMode = AppMode.OPENHANDS
@@ -244,12 +263,12 @@ def config_from_env() -> AppServerConfig:
             config.event = AwsEventServiceInjector(bucket_name=bucket_name)
         elif provider == StorageProvider.GCP:
             # Google Cloud storage configuration
-            bucket_name = os.environ.get('FILE_STORE_PATH')
-            if not bucket_name:
+            gcp_bucket = os.environ.get('FILE_STORE_PATH')
+            if not gcp_bucket:
                 raise ValueError(
-                    'FILE_STORE_PATH environment variable is required for Google Cloud storage'
+                    'FILE_STORE_PATH environment variable is required for GCP storage'
                 )
-            config.event = GoogleCloudEventServiceInjector(bucket_name=bucket_name)
+            config.event = GoogleCloudEventServiceInjector(bucket_name=gcp_bucket)
         else:
             config.event = FilesystemEventServiceInjector()
 
@@ -351,17 +370,16 @@ def config_from_env() -> AppServerConfig:
         config.jwt = JwtServiceInjector(persistence_dir=config.persistence_dir)
 
     # Configure messaging if enabled
-    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
-    # if config.messaging is not None and config.messaging.enabled:
-    #     if not MESSAGING_AVAILABLE:
-    #         raise RuntimeError(
-    #             'Messaging is enabled but the messaging module is not available. '
-    #             'Please install the required dependencies: pip install python-telegram-bot'
-    #         )
-    #     if config.messaging_service is None:
-    #         config.messaging_service = MessagingServiceInjectorBase(
-    #             config=config.messaging
-    #         )
+    if config.messaging is not None and config.messaging.enabled:
+        if not MESSAGING_AVAILABLE:
+            raise RuntimeError(
+                'Messaging is enabled but the messaging module is not available. '
+                'Please install the required dependencies: pip install python-telegram-bot'
+            )
+        if config.messaging_service is None:
+            config.messaging_service = MessagingServiceInjectorBase(
+                config=config.messaging
+            )
 
     return config
 
@@ -555,11 +573,15 @@ def get_messaging_service(
     Raises:
         RuntimeError: If messaging service is not configured
     """
-    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
-    raise RuntimeError('Messaging service is temporarily disabled')
+    injector = get_global_config().messaging_service
+    if injector is None:
+        raise RuntimeError('Messaging service not configured')
+    return injector.context(state, request)
 
 
 def depends_messaging_service():
     """Dependency injection for messaging service."""
-    # NOTE: Temporarily disabled due to SDK 1.12.0 compatibility issue
-    raise RuntimeError('Messaging service is temporarily disabled')
+    injector = get_global_config().messaging_service
+    if injector is None:
+        raise RuntimeError('Messaging service not configured')
+    return Depends(injector.depends)

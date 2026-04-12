@@ -7,7 +7,7 @@ including base configuration and provider-specific configurations.
 from enum import Enum
 from typing import Any
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, field_validator
 
 from openhands.sdk.utils.models import OpenHandsModel
 
@@ -93,12 +93,3 @@ class TelegramConfig:
     """
 
     pass
-
-    @property
-    def is_webhook_mode(self) -> bool:
-        """Check if the bot is configured for webhook mode.
-
-        Returns:
-            True if webhook_url is set, False for polling mode
-        """
-        return self.webhook_url is not None
