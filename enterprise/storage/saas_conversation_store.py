@@ -96,8 +96,8 @@ class SaasConversationStore(ConversationStore):
     async def save_metadata(self, metadata: ConversationMetadata):
         kwargs = dataclasses.asdict(metadata)
 
-        # Remove user_id and org_id from kwargs since they're no longer in StoredConversationMetadata
-        kwargs.pop('user_id', None)
+        # Keep user_id in kwargs for StoredConversationMetadata (OSS table)
+        # Only remove org_id since it's not in StoredConversationMetadata
         kwargs.pop('org_id', None)
 
         # Convert ProviderType enum to string for storage
