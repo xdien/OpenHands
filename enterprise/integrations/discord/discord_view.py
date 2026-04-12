@@ -37,7 +37,8 @@ from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationStartRequest,
     SendMessageRequest,
 )
-from openhands.app_server.config import get_app_conversation_service, get_config
+from openhands.app_server.config import get_app_conversation_service
+from server.config import get_config
 from openhands.app_server.sandbox.sandbox_models import SandboxStatus
 from openhands.app_server.services.injector import InjectorState
 from openhands.app_server.user.specifiy_user_context import USER_CONTEXT_ATTR
