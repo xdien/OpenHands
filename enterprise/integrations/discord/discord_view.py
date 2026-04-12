@@ -164,8 +164,8 @@ class DiscordNewConversationView(DiscordViewInterface):
         self._verify_necessary_values_are_set()
 
         # Check if V1 conversations are enabled for this user
-        # For now, enable V1 for all Discord users (can be made configurable)
-        self.v1_enabled = True
+        # For now, keep V0 as default (can be changed to V1 after WebSocket issue is fixed)
+        self.v1_enabled = False
 
         if self.v1_enabled:
             # Use V1 app conversation service
