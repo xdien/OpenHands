@@ -134,6 +134,8 @@ def _get_default_lifespan():
 
 
 class AppServerConfig(OpenHandsModel):
+    model_config = {'arbitrary_types_allowed': True}
+
     persistence_dir: Path = Field(default_factory=get_default_persistence_dir)
     web_url: str | None = Field(
         default_factory=get_default_web_url,
