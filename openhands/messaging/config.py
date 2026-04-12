@@ -82,41 +82,17 @@ class MessagingConfig(OpenHandsModel):
         Raises:
             ValueError: If provider is not TELEGRAM or provider_config is invalid
         """
-        if self.provider != MessagingProviderType.TELEGRAM:
-            raise ValueError(f'Provider is {self.provider}, not TELEGRAM')
-
-        if not self.provider_config:
-            raise ValueError('provider_config is not set')
-
-        return TelegramConfig.model_validate(self.provider_config)
+        raise RuntimeError('Telegram integration has been removed')
 
 
-class TelegramConfig(OpenHandsModel):
-    """Telegram-specific configuration.
+class TelegramConfig:
+    """Telegram-specific configuration (deprecated).
 
-    This configuration controls the Telegram Bot integration settings.
-
-    Attributes:
-        bot_token: Telegram Bot Token obtained from @BotFather
-        webhook_url: Optional webhook URL for receiving updates.
-            If not set, the bot will use polling mode.
-        poll_interval: Polling interval in seconds (only for polling mode)
-        max_message_length: Maximum message length before truncation
+    Telegram integration has been removed. Please use enterprise integrations
+    (Slack, Discord) instead.
     """
 
-    bot_token: SecretStr = Field(..., description='Telegram Bot Token from @BotFather')
-    webhook_url: str | None = Field(
-        default=None, description='Optional webhook URL. If not set, uses polling mode.'
-    )
-    poll_interval: int = Field(
-        default=1,
-        ge=0,
-        le=10,
-        description='Polling interval in seconds (only for polling mode)',
-    )
-    max_message_length: int = Field(
-        default=4096, ge=1, description='Max message length before truncation'
-    )
+    pass
 
     @property
     def is_webhook_mode(self) -> bool:

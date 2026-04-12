@@ -97,41 +97,12 @@ class MessagingService:
         # Create integration based on provider type
         allowed_user_ids = set(self.config.allowed_user_ids)
 
-        # Create integration based on provider type
-        # Note: Future providers will be added here. Currently only TELEGRAM is supported.
-        allowed_user_ids = set(self.config.allowed_user_ids)
-
-        # Initialize Telegram integration
-        from openhands.messaging.telegram import TelegramIntegration
-
-        telegram_config = self.config.get_telegram_config()
-        self.integration = TelegramIntegration(
-            config=telegram_config,
-            allowed_user_ids=allowed_user_ids,
-            messaging_service=self,
+        # Telegram integration has been removed
+        # The generic messaging service is no longer available
+        raise RuntimeError(
+            'Generic messaging service is not available. '
+            'Please use enterprise integrations (Slack, Discord) instead.'
         )
-        await self.integration.start()
-        logger.info('Telegram integration started successfully')
-        self._initialized = True
-
-        try:
-            from openhands.messaging.telegram import TelegramIntegration
-
-            telegram_config = self.config.get_telegram_config()
-            self.integration = TelegramIntegration(
-                config=telegram_config,
-                allowed_user_ids=allowed_user_ids,
-                messaging_service=self,
-            )
-            await self.integration.start()
-            logger.info('Telegram integration started successfully')
-            self._initialized = True
-        except ImportError as e:
-            logger.error(f'Failed to import Telegram integration: {e}')
-            raise
-        except Exception as e:
-            logger.error(f'Failed to start Telegram integration: {e}')
-            raise
 
     async def shutdown(self) -> None:
         """Shutdown the messaging service and stop the integration."""
