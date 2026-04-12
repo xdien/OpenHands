@@ -77,12 +77,13 @@ class DiscordManager(Manager[DiscordViewInterface]):
             raise ValueError(f'Unexpected message source {message.source}')
 
     async def authenticate_user(
-        self, discord_user_id: str
+        self, discord_user_id: str, discord_username: str | None = None
     ) -> tuple[DiscordUser | None, UserAuth | None]:
         """Authenticate Discord user and get OpenHands user auth.
 
         Args:
             discord_user_id: The Discord user ID (snowflake)
+            discord_username: The Discord username (optional, will update DB if provided)
 
         Returns:
             Tuple of (DiscordUser, UserAuth) if authenticated with Keycloak,
@@ -97,6 +98,19 @@ class DiscordManager(Manager[DiscordViewInterface]):
                 )
             )
             discord_user = result.scalar_one_or_none()
+
+            # Update discord_username if provided and different from DB
+            if discord_user and discord_username and discord_user.discord_username != discord_username:
+                discord_user.discord_username = discord_username
+                await session.commit()
+                logger.info(
+                    'discord_username_updated',
+                    extra={
+                        'discord_user_id': discord_user_id,
+                        'old_username': discord_user.discord_username,
+                        'new_username': discord_username,
+                    },
+                )
 
         saas_user_auth = None
         # Only get UserAuth if Discord user exists AND has keycloak_user_id
@@ -365,7 +379,8 @@ class DiscordManager(Manager[DiscordViewInterface]):
             DiscordError: If user is not authenticated or other recoverable error.
         """
         discord_user, saas_user_auth = await self.authenticate_user(
-            discord_user_id=message.message['discord_user_id']
+            discord_user_id=message.message['discord_user_id'],
+            discord_username=message.message.get('discord_username')
         )
 
         discord_view = await DiscordFactory.create_discord_view_from_payload(
