@@ -25,6 +25,7 @@ from jinja2 import Environment
 from storage.discord_conversation import DiscordConversation
 from storage.discord_conversation_store import DiscordConversationStore
 from storage.discord_user import DiscordUser
+from storage.saas_conversation_store import SaasConversationStore
 
 # Discord conversation store instance
 discord_conversation_store = DiscordConversationStore.get_instance()
@@ -36,7 +37,7 @@ from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationStartRequest,
     SendMessageRequest,
 )
-from openhands.app_server.config import get_app_conversation_service
+from openhands.app_server.config import get_app_conversation_service, get_config
 from openhands.app_server.sandbox.sandbox_models import SandboxStatus
 from openhands.app_server.services.injector import InjectorState
 from openhands.app_server.user.specifiy_user_context import USER_CONTEXT_ATTR
@@ -47,8 +48,7 @@ from openhands.events.serialization.event import event_to_dict
 from openhands.integrations.provider import ProviderHandler, ProviderType
 from openhands.sdk import TextContent
 from openhands.server.services.conversation_service import (
-    create_new_conversation,
-    setup_init_conversation_settings,
+    start_conversation,
 )
 from openhands.server.shared import ConversationStoreImpl, config, conversation_manager
 from openhands.server.user_auth.user_auth import UserAuth
@@ -168,7 +168,7 @@ class DiscordNewConversationView(DiscordViewInterface):
     async def _create_v0_conversation(
         self, jinja: Environment, provider_tokens, user_secrets
     ) -> None:
-        """Create conversation using the legacy V0 system."""
+        """Create conversation using the legacy V0 system (following Slack pattern)."""
         user_instructions, conversation_instructions = await self._get_instructions(
             jinja
         )
@@ -180,24 +180,49 @@ class DiscordNewConversationView(DiscordViewInterface):
             repository = await provider_handler.verify_repo_provider(self.selected_repo)
             git_provider = repository.git_provider
 
-        agent_loop_info = await create_new_conversation(
-            user_id=self.discord_to_openhands_user.keycloak_user_id,
-            git_provider_tokens=provider_tokens,
+        # Use SaasConversationStore with resolver org routing (same as Slack)
+        # This bypasses initialize_conversation to avoid threading enterprise-only
+        # resolver_org_id through the generic OSS interface
+        user_id = self.discord_to_openhands_user.keycloak_user_id
+
+        store = await SaasConversationStore.get_resolver_instance(
+            get_config(),
+            user_id,
+            None,  # resolved_org_id - can be added later if needed
+        )
+
+        conversation_id = uuid4().hex
+        from openhands.storage.data_models.conversation_metadata import ConversationMetadata as OSSConversationMetadata
+        conversation_metadata = OSSConversationMetadata(
+            trigger=ConversationTrigger.DISCORD,
+            conversation_id=conversation_id,
+            title=f"Discord conversation {conversation_id[:8]}",
+            user_id=user_id,
             selected_repository=self.selected_repo,
             selected_branch=None,
+            git_provider=git_provider,
+        )
+        await store.save_metadata(conversation_metadata)
+
+        self.conversation_id = conversation_id
+        logger.info(f'[Discord]: Created V0 conversation: {self.conversation_id}')
+
+        # Start the conversation using start_conversation directly
+        from openhands.server.services.conversation_service import start_conversation
+        await start_conversation(
+            user_id=user_id,
+            git_provider_tokens=provider_tokens,
+            custom_secrets=user_secrets.custom_secrets if user_secrets else None,
             initial_user_msg=user_instructions,
+            image_urls=None,
+            replay_json=None,
+            conversation_id=conversation_id,
+            conversation_metadata=conversation_metadata,
             conversation_instructions=(
                 conversation_instructions if conversation_instructions else None
             ),
-            image_urls=None,
-            replay_json=None,
-            conversation_trigger=ConversationTrigger.DISCORD,
-            custom_secrets=user_secrets.custom_secrets if user_secrets else None,
-            git_provider=git_provider,
         )
 
-        self.conversation_id = agent_loop_info.conversation_id
-        logger.info(f'[Discord]: Created V0 conversation: {self.conversation_id}')
         await self.save_discord_convo()
 
     def get_response_msg(self) -> str:
