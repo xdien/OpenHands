@@ -15,12 +15,12 @@ from openhands.app_server.utils.dependencies import get_dependencies
 from openhands.controller.agent import Agent
 from openhands.security.options import SecurityAnalyzers
 from openhands.server.shared import config, server_config
-from openhands.utils.llm import get_supported_llm_models
+from openhands.utils.llm import get_supported_llm_models, ModelsResponse
 
 app = APIRouter(prefix='/api/options', dependencies=get_dependencies())
 
 
-async def get_llm_models_dependency(request: Request) -> list[str]:
+async def get_llm_models_dependency(request: Request) -> ModelsResponse:
     """Returns a callable that provides the LLM models implementation.
 
     Returns a factory that produces the actual implementation function.
