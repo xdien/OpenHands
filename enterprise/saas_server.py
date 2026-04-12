@@ -1,10 +1,17 @@
 import asyncio
 import contextlib
 import os
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+# Add enterprise directory to sys.path for imports
+# This allows running "poetry run uvicorn enterprise.saas_server:app" from root directory
+enterprise_dir = Path(__file__).parent
+if str(enterprise_dir) not in sys.path:
+    sys.path.insert(0, str(enterprise_dir))
 
 # Load .env from enterprise directory
 env_path = Path(__file__).parent / '.env'
