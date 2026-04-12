@@ -190,13 +190,16 @@ export function ConversationWebSocketProvider({
   );
 
   // Build WebSocket URL from props
-  // Only build URL if we have both conversationId and conversationUrl
-  // This prevents connection attempts during task polling phase
+  // For V1 conversations (no conversation_url), we still need to connect to the main server
+  // For V0 conversations, we connect to the agent-server with random port
   const wsUrl = useMemo(() => {
-    // Don't attempt connection if we're missing required data
-    if (!conversationId || !conversationUrl) {
+    // Don't attempt connection if we're missing conversationId
+    if (!conversationId) {
       return null;
     }
+    // For V1 (no conversation_url), buildWebSocketUrl will use window.location.host
+    // which points to the main server (port 3009)
+    // For V0 (has conversation_url), it uses the agent-server URL with random port
     return buildWebSocketUrl(conversationId, conversationUrl);
   }, [conversationId, conversationUrl]);
 
