@@ -79,6 +79,7 @@ export function ConversationWebSocketProvider({
   children,
   conversationId,
   conversationUrl,
+  conversationVersion,
   sessionApiKey,
   subConversations,
   subConversationIds,
@@ -86,6 +87,7 @@ export function ConversationWebSocketProvider({
   children: React.ReactNode;
   conversationId?: string;
   conversationUrl?: string | null;
+  conversationVersion?: string | null;
   sessionApiKey?: string | null;
   subConversations?: V1AppConversation[];
   subConversationIds?: string[];
@@ -190,18 +192,18 @@ export function ConversationWebSocketProvider({
   );
 
   // Build WebSocket URL from props
-  // For V1 conversations (no conversation_url), we still need to connect to the main server
-  // For V0 conversations, we connect to the agent-server with random port
+  // Only build URL if we have both conversationId and conversationUrl AND it's a V0 conversation
+  // This prevents connection attempts during task polling phase
+  // Note: V0 conversations have conversation_version = "V0" and use WebSocket
+  // V1 conversations have conversation_version = "V1" and use REST API polling
   const wsUrl = useMemo(() => {
-    // Don't attempt connection if we're missing conversationId
-    if (!conversationId) {
+    // Don't attempt connection if we're missing required data
+    // V1 conversations don't use WebSocket
+    if (!conversationId || !conversationUrl || conversationVersion === "V1") {
       return null;
     }
-    // For V1 (no conversation_url), buildWebSocketUrl will use window.location.host
-    // which points to the main server (port 3009)
-    // For V0 (has conversation_url), it uses the agent-server URL with random port
     return buildWebSocketUrl(conversationId, conversationUrl);
-  }, [conversationId, conversationUrl]);
+  }, [conversationId, conversationUrl, conversationVersion]);
 
   const planningAgentWsUrl = useMemo(() => {
     if (!subConversations?.length) {
@@ -211,9 +213,15 @@ export function ConversationWebSocketProvider({
     // Currently, there is only one sub-conversation and it uses the planning agent.
     const planningAgentConversation = subConversations[0];
 
+    if (!planningAgentConversation?.id) {
+      return null;
+    }
+
+    // Only connect WebSocket if the sub-conversation is V0 (has conversation_url and version !== "V1")
+    // V1 sub-conversations don't use WebSocket
     if (
-      !planningAgentConversation?.id ||
-      !planningAgentConversation.conversation_url
+      !planningAgentConversation.conversation_url ||
+      planningAgentConversation.conversation_version === "V1"
     ) {
       return null;
     }

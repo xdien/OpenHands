@@ -205,10 +205,14 @@ export function ConversationSubscriptionsProvider({
         // Build query params - only include session_api_key if it's not null/undefined
         const query: Record<string, string> = {
           conversation_id: conversationId,
-          providers_set: providersSet.join(','),
+          providers_set: providersSet.join(","),
         };
         // Note: sessionApiKey might be the string "null" from JSON serialization
-        if (sessionApiKey && sessionApiKey !== 'null' && sessionApiKey !== 'undefined') {
+        if (
+          sessionApiKey &&
+          sessionApiKey !== "null" &&
+          sessionApiKey !== "undefined"
+        ) {
           query.session_api_key = sessionApiKey;
         }
 

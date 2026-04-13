@@ -86,9 +86,9 @@ class DiscordNewConversationView(DiscordViewInterface):
         """Remove bot mention from the message text."""
         # Remove <@bot_id> or <@!bot_id> mentions
         for mention in mentions:
-            if mention.get('id'):
-                text = text.replace(f'<@{mention["id"]}>', '')
-                text = text.replace(f'<@!{mention["id"]}>', '')
+            if mention.get("id"):
+                text = text.replace(f"<@{mention['id']}>", "")
+                text = text.replace(f"<@!{mention['id']}>", "")
         return text.strip()
 
     async def _get_instructions(self, jinja_env: Environment) -> tuple[str, str]:
@@ -99,12 +99,12 @@ class DiscordNewConversationView(DiscordViewInterface):
         # Discord API doesn't have the same threading model as Slack
         user_message = self.user_msg
 
-        conversation_instructions = ''
+        conversation_instructions = ""
 
         # If we have thread context, we could fetch it here
         # For now, we'll use a simple template
         conversation_instructions_template = jinja_env.get_template(
-            'user_message_conversation_instructions.j2'
+            "user_message_conversation_instructions.j2"
         )
         conversation_instructions = conversation_instructions_template.render(
             messages=[self.user_msg],
@@ -117,7 +117,7 @@ class DiscordNewConversationView(DiscordViewInterface):
     def _verify_necessary_values_are_set(self):
         if not self.selected_repo:
             raise ValueError(
-                'Attempting to start conversation without confirming selected repo from user'
+                "Attempting to start conversation without confirming selected repo from user"
             )
 
     async def save_discord_convo(self, v1_enabled: bool = False):
@@ -130,13 +130,13 @@ class DiscordNewConversationView(DiscordViewInterface):
             user_info: DiscordUser = self.discord_to_openhands_user
 
             logger.info(
-                'Create discord conversation',
+                "Create discord conversation",
                 extra={
-                    'channel_id': self.channel_id,
-                    'conversation_id': self.conversation_id,
-                    'keycloak_user_id': user_info.keycloak_user_id,
-                    'org_id': user_info.org_id,
-                    'parent_id': self.thread_id or self.message_id,
+                    "channel_id": self.channel_id,
+                    "conversation_id": self.conversation_id,
+                    "keycloak_user_id": user_info.keycloak_user_id,
+                    "org_id": user_info.org_id,
+                    "parent_id": self.thread_id or self.message_id,
                 },
             )
 
@@ -154,10 +154,10 @@ class DiscordNewConversationView(DiscordViewInterface):
                     discord_conversation
                 )
                 logger.info(
-                    f'Saved discord conversation mapping: {self.conversation_id} -> channel {self.channel_id}, thread {self.thread_id}'
+                    f"Saved discord conversation mapping: {self.conversation_id} -> channel {self.channel_id}, thread {self.thread_id}"
                 )
             except Exception as e:
-                logger.warning(f'Failed to save discord conversation mapping: {e}')
+                logger.warning(f"Failed to save discord conversation mapping: {e}")
 
     async def create_or_update_conversation(self, jinja: Environment) -> str:
         """Create a new conversation."""
@@ -211,7 +211,7 @@ class DiscordNewConversationView(DiscordViewInterface):
         conversation_metadata = OSSConversationMetadata(
             trigger=ConversationTrigger.DISCORD,
             conversation_id=conversation_id,
-            title=f'Discord conversation {conversation_id[:8]}',
+            title=f"Discord conversation {conversation_id[:8]}",
             user_id=user_id,
             selected_repository=self.selected_repo,
             selected_branch=None,
@@ -220,7 +220,7 @@ class DiscordNewConversationView(DiscordViewInterface):
         await store.save_metadata(conversation_metadata)
 
         self.conversation_id = conversation_id
-        logger.info(f'[Discord]: Created V0 conversation: {self.conversation_id}')
+        logger.info(f"[Discord]: Created V0 conversation: {self.conversation_id}")
 
         # Start the conversation using start_conversation directly
         await start_conversation(
@@ -247,7 +247,7 @@ class DiscordNewConversationView(DiscordViewInterface):
 
         # Create the initial message request
         initial_message = SendMessageRequest(
-            role='user', content=[TextContent(text=user_instructions)]
+            role="user", content=[TextContent(text=user_instructions)]
         )
 
         # Create the Discord V1 callback processor
@@ -275,7 +275,7 @@ class DiscordNewConversationView(DiscordViewInterface):
             initial_message=initial_message,
             selected_repository=self.selected_repo,
             git_provider=git_provider,
-            title=f'Discord conversation {self.conversation_id[:8]}',
+            title=f"Discord conversation {self.conversation_id[:8]}",
             trigger=ConversationTrigger.DISCORD,
             processors=[
                 discord_callback_processor
@@ -289,6 +289,14 @@ class DiscordNewConversationView(DiscordViewInterface):
         )
         setattr(injector_state, USER_CONTEXT_ATTR, discord_user_context)
 
+        # Log user context details for debugging
+        user_id = await self.saas_user_auth.get_user_id()
+        logger.info(
+            f"[Discord V1] Creating conversation with user_context: "
+            f"conversation_id={self.conversation_id}, user_id={user_id}, "
+            f"saas_user_auth type={type(self.saas_user_auth).__name__}"
+        )
+
         async with get_app_conversation_service(
             injector_state
         ) as app_conversation_service:
@@ -296,22 +304,26 @@ class DiscordNewConversationView(DiscordViewInterface):
                 start_request
             ):
                 if task.status == AppConversationStartTaskStatus.ERROR:
-                    logger.error(f'Failed to start V1 conversation: {task.detail}')
+                    logger.error(f"Failed to start V1 conversation: {task.detail}")
                     raise RuntimeError(
-                        f'Failed to start V1 conversation: {task.detail}'
+                        f"Failed to start V1 conversation: {task.detail}"
                     )
+                logger.info(
+                    f"[Discord V1] Conversation start task: status={task.status}, "
+                    f"conversation_id={task.app_conversation_id}"
+                )
 
-        logger.info(f'[Discord V1]: Created new conversation: {self.conversation_id}')
+        logger.info(f"[Discord V1]: Created new conversation: {self.conversation_id}")
         await self.save_discord_convo(v1_enabled=True)
 
     def _create_discord_v1_callback_processor(self) -> DiscordV1CallbackProcessor:
         """Create a DiscordV1CallbackProcessor for V1 conversation handling."""
         return DiscordV1CallbackProcessor(
             discord_view_data={
-                'channel_id': str(self.channel_id),
-                'thread_id': str(self.thread_id) if self.thread_id else None,
-                'conversation_id': self.conversation_id,
-                'discord_user_id': self.discord_user_id,
+                "channel_id": str(self.channel_id),
+                "thread_id": str(self.thread_id) if self.thread_id else None,
+                "conversation_id": self.conversation_id,
+                "discord_user_id": self.discord_user_id,
             }
         )
 
@@ -342,7 +354,7 @@ class DiscordUpdateExistingConversationView(DiscordViewInterface):
 
     async def _get_instructions(self, jinja_env: Environment) -> tuple[str, str]:
         """Get instructions from the follow-up message."""
-        return self.user_msg, ''
+        return self.user_msg, ""
 
     async def create_or_update_conversation(self, jinja: Environment) -> str:
         """Update an existing conversation with a new message."""
@@ -356,12 +368,12 @@ class DiscordUpdateExistingConversationView(DiscordViewInterface):
                 self.conversation_id, event_dict
             )
             logger.info(
-                f'[Discord]: Sent follow-up message to conversation {self.conversation_id}'
+                f"[Discord]: Sent follow-up message to conversation {self.conversation_id}"
             )
         except Exception as e:
-            logger.error(f'[Discord]: Failed to send message to conversation: {e}')
+            logger.error(f"[Discord]: Failed to send message to conversation: {e}")
             raise StartingConvoException(
-                f'Failed to send message to conversation: {str(e)}'
+                f"Failed to send message to conversation: {str(e)}"
             )
 
         return self.conversation_id
@@ -370,7 +382,7 @@ class DiscordUpdateExistingConversationView(DiscordViewInterface):
         """Get the response message."""
         conversation_link = CONVERSATION_URL.format(self.conversation_id)
         return (
-            f'Message received! Continuing the conversation here: {conversation_link}'
+            f"Message received! Continuing the conversation here: {conversation_link}"
         )
 
 
@@ -403,29 +415,29 @@ class DiscordFactory:
             # Return basic message view for users without Keycloak integration
             # This allows Discord user to exist without OpenHands account
             return DiscordMessageView(
-                bot_token='',  # Will be filled by from_payload
-                discord_user_id=str(payload.get('discord_user_id', '')),
-                channel_id=int(payload.get('channel_id', 0)),
-                message_id=int(payload.get('message_id', 0)),
-                thread_id=payload.get('thread_id'),
-                guild_id=int(payload.get('guild_id', 0)),
+                bot_token="",  # Will be filled by from_payload
+                discord_user_id=str(payload.get("discord_user_id", "")),
+                channel_id=int(payload.get("channel_id", 0)),
+                message_id=int(payload.get("message_id", 0)),
+                thread_id=payload.get("thread_id"),
+                guild_id=int(payload.get("guild_id", 0)),
             )
 
         # Determine if this is a new conversation or update
-        conversation_id = payload.get('conversation_id')
-        user_msg = payload.get('user_msg', '')
-        selected_repo = payload.get('selected_repo')
+        conversation_id = payload.get("conversation_id")
+        user_msg = payload.get("user_msg", "")
+        selected_repo = payload.get("selected_repo")
 
         # Get Discord identifiers from payload
-        channel_id = payload.get('channel_id')
-        thread_id = payload.get('thread_id')
-        message_id = payload.get('message_id')
+        channel_id = payload.get("channel_id")
+        thread_id = payload.get("thread_id")
+        message_id = payload.get("message_id")
 
         # DEBUG: Log the conversation_id decision
         from server.logger import logger
 
         logger.info(
-            f'discord_factory: conversation_id from payload: {conversation_id}, thread_id: {thread_id}, message_id: {message_id}'
+            f"discord_factory: conversation_id from payload: {conversation_id}, thread_id: {thread_id}, message_id: {message_id}"
         )
 
         # Follow Slack pattern: determine if updating existing conversation
@@ -438,40 +450,40 @@ class DiscordFactory:
             )
             if existing_discord_conversation:
                 logger.info(
-                    f'discord_factory: Found existing conversation {existing_discord_conversation.conversation_id} for channel {channel_id}, thread {thread_id}'
+                    f"discord_factory: Found existing conversation {existing_discord_conversation.conversation_id} for channel {channel_id}, thread {thread_id}"
                 )
 
         if existing_discord_conversation:
             # Update existing conversation (follow Slack pattern)
             return DiscordUpdateExistingConversationView(
-                bot_token='',  # Will be filled later
+                bot_token="",  # Will be filled later
                 user_msg=user_msg,
-                discord_user_id=str(payload.get('discord_user_id', '')),
+                discord_user_id=str(payload.get("discord_user_id", "")),
                 discord_to_openhands_user=discord_user,
                 saas_user_auth=saas_user_auth,
-                channel_id=int(payload.get('channel_id', 0)),
-                message_id=int(payload.get('message_id', 0)),
-                thread_id=payload.get('thread_id'),
+                channel_id=int(payload.get("channel_id", 0)),
+                message_id=int(payload.get("message_id", 0)),
+                thread_id=payload.get("thread_id"),
                 selected_repo=selected_repo,
                 should_extract=True,
                 send_summary_instruction=False,
                 conversation_id=existing_discord_conversation.conversation_id,
-                guild_id=int(payload.get('guild_id', 0)),
+                guild_id=int(payload.get("guild_id", 0)),
             )
         else:
             # New conversation
             return DiscordNewConversationView(
-                bot_token='',  # Will be filled later
+                bot_token="",  # Will be filled later
                 user_msg=user_msg,
-                discord_user_id=str(payload.get('discord_user_id', '')),
+                discord_user_id=str(payload.get("discord_user_id", "")),
                 discord_to_openhands_user=discord_user,
                 saas_user_auth=saas_user_auth,
-                channel_id=int(payload.get('channel_id', 0)),
-                message_id=int(payload.get('message_id', 0)),
-                thread_id=payload.get('thread_id'),
+                channel_id=int(payload.get("channel_id", 0)),
+                message_id=int(payload.get("message_id", 0)),
+                thread_id=payload.get("thread_id"),
                 selected_repo=selected_repo,
                 should_extract=True,
                 send_summary_instruction=False,
-                conversation_id='',
-                guild_id=int(payload.get('guild_id', 0)),
+                conversation_id="",
+                guild_id=int(payload.get("guild_id", 0)),
             )

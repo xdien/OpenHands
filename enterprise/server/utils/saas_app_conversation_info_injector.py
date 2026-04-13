@@ -68,22 +68,34 @@ class SaasSQLAppConversationInfoService(SQLAppConversationInfoService):
         # we need a mode that does not have filtering. The dependency `as_admin()`
         # is used to enable it
         if self.user_context == ADMIN:
+            logger.info('[SAAS Metadata] _apply_user_and_org_filter: ADMIN mode, no filtering')
             return query
 
         user_id_str = await self.user_context.get_user_id()
+        logger.info(
+            f'[SAAS Metadata] _apply_user_and_org_filter: user_id_str={user_id_str}, '
+            f'user_context type={type(self.user_context).__name__}'
+        )
         if not user_id_str:
             # Secure default: no user means no access, not "show everything"
+            logger.warning('[SAAS Metadata] _apply_user_and_org_filter: No user_id, raising AuthError')
             raise AuthError('User authentication required')
 
         user_id_uuid = UUID(user_id_str)
         query = query.where(StoredConversationMetadataSaas.user_id == user_id_uuid)
+        logger.info(f'[SAAS Metadata] Applied user_id filter: {user_id_uuid}')
 
         # Filter by organization ID to ensure conversations are isolated per organization
         user = await self._get_current_user()
+        logger.info(
+            f'[SAAS Metadata] User org check: user_found={user is not None}, '
+            f'current_org_id={user.current_org_id if user else None}'
+        )
         if user and user.current_org_id is not None:
             query = query.where(
                 StoredConversationMetadataSaas.org_id == user.current_org_id
             )
+            logger.info(f'[SAAS Metadata] Applied org_id filter: {user.current_org_id}')
 
         return query
 
@@ -97,7 +109,12 @@ class SaasSQLAppConversationInfoService(SQLAppConversationInfoService):
             )
             .where(StoredConversationMetadata.conversation_version == 'V1')
         )
-        return await self._apply_user_and_org_filter(query)
+        filtered_query = await self._apply_user_and_org_filter(query)
+        logger.info(
+            f'[SAAS Metadata] _secure_select: user_context type={type(self.user_context).__name__}, '
+            f'is_admin={self.user_context == ADMIN}'
+        )
+        return filtered_query
 
     async def _secure_select_with_saas_metadata(self):
         """Select query that includes SAAS metadata for retrieving user_id."""
@@ -344,29 +361,46 @@ class SaasSQLAppConversationInfoService(SQLAppConversationInfoService):
         # Get current user_id for SAAS metadata
         # Fall back to info.created_by_user_id for webhook callbacks (which use ADMIN context)
         user_id_str = await self.user_context.get_user_id()
+        logger.info(
+            f'[SAAS Metadata] save_app_conversation_info: conversation_id={info.id}, '
+            f'user_id_str={user_id_str}, created_by_user_id={info.created_by_user_id}, '
+            f'user_context type={type(self.user_context).__name__}'
+        )
         if not user_id_str and info.created_by_user_id:
             user_id_str = info.created_by_user_id
+            logger.info(f'[SAAS Metadata] Using fallback created_by_user_id={user_id_str}')
         if user_id_str:
             # Convert string user_id to UUID
             user_id_uuid = UUID(user_id_str)
             user_query = select(User).where(User.id == user_id_uuid)
             result = await self.db_session.execute(user_query)
             user = result.scalar_one_or_none()
+            logger.info(
+                f'[SAAS Metadata] User lookup: user_id_uuid={user_id_uuid}, '
+                f'user_found={user is not None}, user_current_org_id={user.current_org_id if user else None}'
+            )
             assert user
 
             # Determine org_id: prefer API key's org_id if authenticated via API key
             org_id = user.current_org_id  # Default fallback
+            has_user_auth = hasattr(self.user_context, 'user_auth')
+            logger.info(
+                f'[SAAS Metadata] Org determination: initial_org_id={org_id}, '
+                f'has_user_auth={has_user_auth}, resolver_org_id={getattr(self.user_context, "resolver_org_id", None)}'
+            )
             if hasattr(self.user_context, 'user_auth'):
                 user_auth = self.user_context.user_auth
                 if hasattr(user_auth, 'get_api_key_org_id'):
                     api_key_org_id = user_auth.get_api_key_org_id()
                     if api_key_org_id is not None:
                         org_id = api_key_org_id
+                        logger.info(f'[SAAS Metadata] Using API key org_id={org_id}')
 
             # Override with resolver org_id if set (from git org claim resolution)
             resolver_org_id = getattr(self.user_context, 'resolver_org_id', None)
             if resolver_org_id is not None:
                 org_id = resolver_org_id
+                logger.info(f'[SAAS Metadata] Using resolver_org_id={org_id}')
 
             # Check if SAAS metadata already exists
             saas_query = select(StoredConversationMetadataSaas).where(
@@ -374,6 +408,11 @@ class SaasSQLAppConversationInfoService(SQLAppConversationInfoService):
             )
             result = await self.db_session.execute(saas_query)
             existing_saas_metadata = result.scalar_one_or_none()
+            logger.info(
+                f'[SAAS Metadata] Existing SAAS metadata check: exists={existing_saas_metadata is not None}, '
+                f'existing_user_id={existing_saas_metadata.user_id if existing_saas_metadata else None}, '
+                f'existing_org_id={existing_saas_metadata.org_id if existing_saas_metadata else None}'
+            )
             assert existing_saas_metadata is None or (
                 existing_saas_metadata.user_id == user_id_uuid
                 and existing_saas_metadata.org_id == org_id
@@ -387,8 +426,19 @@ class SaasSQLAppConversationInfoService(SQLAppConversationInfoService):
                     org_id=org_id,
                 )
                 self.db_session.add(saas_metadata)
+                logger.info(
+                    f'[SAAS Metadata] Created new SAAS metadata: conversation_id={info.id}, '
+                    f'user_id={user_id_uuid}, org_id={org_id}'
+                )
 
             await self.db_session.commit()
+            logger.info(f'[SAAS Metadata] Committed SAAS metadata for conversation_id={info.id}')
+
+        else:
+            logger.warning(
+                f'[SAAS Metadata] No user_id_str available for conversation_id={info.id}, '
+                f'SAAS metadata will NOT be created!'
+            )
 
         return info
 
