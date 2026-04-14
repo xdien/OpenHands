@@ -1,5 +1,5 @@
 BACKEND_HOST ?= "127.0.0.1"
-BACKEND_PORT = 3000
+BACKEND_PORT ?= 3000
 BACKEND_HOST_PORT = "$(BACKEND_HOST):$(BACKEND_PORT)"
 FRONTEND_PORT = 3001
 OPENHANDS_PATH ?= ".."
@@ -19,11 +19,11 @@ build:
 
 
 _run_setup:
-	@echo "$(YELLOW)Starting backend server...$(RESET)"
-	@cd app && FRONTEND_DIRECTORY=$(OPENHANDS_FRONTEND_PATH) poetry run uvicorn saas_server:app --host $(BACKEND_HOST) --port $(BACKEND_PORT) &
+	@echo "$(YELLOW)Starting backend server on port $(BACKEND_PORT)...$(RESET)"
+	@FRONTEND_DIRECTORY=$(OPENHANDS_FRONTEND_PATH) poetry run uvicorn saas_server:app --host $(BACKEND_HOST) --port $(BACKEND_PORT) &
 	@echo "$(YELLOW)Waiting for the backend to start...$(RESET)"
 	@until nc -z localhost $(BACKEND_PORT); do sleep 0.1; done
-	@echo "$(GREEN)Backend started successfully.$(RESET)"
+	@echo "$(GREEN)Backend started successfully on port $(BACKEND_PORT).$(RESET)"
 
 run:
 	@echo "$(YELLOW)Running the app...$(RESET)"
@@ -33,10 +33,17 @@ run:
 
 # Start backend
 start-backend:
-	@echo "$(YELLOW)Starting backend...$(RESET)"
+	@echo "$(YELLOW)Starting backend on port $(BACKEND_PORT)...$(RESET)"
 	@echo "$(OPENHANDS_FRONTEND_PATH)"
-	@cd app && FRONTEND_DIRECTORY=$(OPENHANDS_FRONTEND_PATH) poetry run uvicorn saas_server:app --host $(BACKEND_HOST) --port $(BACKEND_PORT) --reload-dir $(OPENHANDS_PATH) --reload --reload-dir ./ --reload-exclude "./workspace"
+	@FRONTEND_DIRECTORY=$(OPENHANDS_FRONTEND_PATH) poetry run uvicorn saas_server:app --host $(BACKEND_HOST) --port $(BACKEND_PORT) --reload-dir $(OPENHANDS_PATH) --reload --reload-dir ./ --reload-exclude "./workspace"
 
 
 lint:
 	@poetry run pre-commit run --all-files --show-diff-on-failure --config ./dev_config/python/.pre-commit-config.yaml
+
+# Start backend on port 3009 (for production with Apache reverse proxy)
+# Note: Ensure frontend is built first with 'cd ../frontend && npm run build'
+start-backend-3009:
+	@echo "$(YELLOW)Starting Enterprise backend on port 3009...$(RESET)"
+	@echo "$(YELLOW)Serving static frontend from: $(OPENHANDS_FRONTEND_PATH)$(RESET)"
+	@BACKEND_PORT=3009 $(MAKE) start-backend
