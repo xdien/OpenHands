@@ -60,11 +60,26 @@ class RateLimiter:
         Raises RateLimitException when limit is hit.
         Logs and swallows exceptions and logs if lookup fails.
         """
+        logger.debug(f'Rate limit check: namespace={namespace}, key={key}')
         for lim in self.limit_items:
             allowed = True
             try:
                 allowed = await self.strategy.hit(lim, namespace, key)
-            except Exception:
+            except Exception as e:
+                # Log detailed error information for debugging
+                import socket
+
+                try:
+                    redis_host = socket.gethostbyname('127.0.0.1')
+                    logger.error(
+                        f'Rate limit check failed. DNS resolution test: 127.0.0.1 -> {redis_host}. '
+                        f'Error type: {type(e).__name__}, Error: {e}'
+                    )
+                except socket.gaierror as dns_err:
+                    logger.error(
+                        f'Rate limit check failed AND DNS resolution failed for 127.0.0.1: {dns_err}. '
+                        f'Original error type: {type(e).__name__}, Error: {e}'
+                    )
                 logger.exception('Rate limit check could not complete, redis issue?')
             if not allowed:
                 logger.info(f'Rate limit hit for {namespace}:{key}')
@@ -101,9 +116,62 @@ def create_redis_rate_limiter(windows: str) -> RateLimiter:
     Create a RateLimiter with the Redis backend and "Fixed Window" strategy.
     windows arg example: "10/second; 100/minute"
     """
-    backend = limits.aio.storage.RedisStorage(f'async+{get_redis_authed_url()}')
-    strategy = limits.aio.strategies.FixedWindowRateLimiter(backend)
-    return RateLimiter(strategy, windows)
+    # Get Redis URL and log it (with password masked for security)
+    redis_url = get_redis_authed_url()
+
+    # Parse and log the URL components for debugging
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(redis_url)
+        logger.info(
+            f'Creating Redis rate limiter: host={parsed.hostname}, port={parsed.port}, '
+            f'db={parsed.path}, password_set={bool(parsed.password)}, '
+            f'scheme={parsed.scheme}'
+        )
+    except Exception as e:
+        logger.warning(f'Could not parse Redis URL for logging: {e}')
+
+    # URL-encode the password to handle special characters
+    # The get_redis_authed_url() returns: redis://:password@host:port/db
+    # We need to ensure special characters in password are properly encoded
+    try:
+        from urllib.parse import quote, urlparse, urlunparse
+
+        parsed = urlparse(redis_url)
+        if parsed.password:
+            # Reconstruct URL with encoded password
+            encoded_password = quote(parsed.password, safe='')
+            # Build netloc with encoded password
+            if parsed.port:
+                netloc = f':{encoded_password}@{parsed.hostname}:{parsed.port}'
+            else:
+                netloc = f':{encoded_password}@{parsed.hostname}'
+            redis_url = urlunparse(
+                (
+                    parsed.scheme,
+                    netloc,
+                    parsed.path,
+                    parsed.params,
+                    parsed.query,
+                    parsed.fragment,
+                )
+            )
+            logger.info('Redis password URL-encoded for special characters')
+    except Exception as e:
+        logger.warning(f'Could not URL-encode Redis password: {e}')
+
+    full_url = f'async+{redis_url}'
+    logger.info('Connecting to Redis with async+redis:// scheme')
+
+    try:
+        backend = limits.aio.storage.RedisStorage(full_url)
+        strategy = limits.aio.strategies.FixedWindowRateLimiter(backend)
+        logger.info('Redis rate limiter created successfully')
+        return RateLimiter(strategy, windows)
+    except Exception as e:
+        logger.error(f'Failed to create Redis rate limiter: {type(e).__name__}: {e}')
+        raise
 
 
 class RateLimitException(HTTPException):

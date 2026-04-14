@@ -48,7 +48,17 @@ from openhands.storage.settings.settings_store import SettingsStore
 token_manager = TokenManager()
 
 
-rate_limiter: RateLimiter = create_redis_rate_limiter('10/second; 100/minute')
+# Create rate limiter with error handling to prevent import-time failures
+try:
+    logger.info('Initializing rate limiter at module import time...')
+    rate_limiter: RateLimiter = create_redis_rate_limiter('10/second; 100/minute')
+    logger.info('Rate limiter initialized successfully')
+except Exception as e:
+    logger.error(
+        f'Failed to initialize rate limiter at import time: {type(e).__name__}: {e}'
+    )
+    # Create a fallback rate limiter that will be retried on first use
+    rate_limiter = None
 
 
 @dataclass
@@ -521,7 +531,23 @@ class SaasUserAuth(UserAuth):
                 # Ensure requests are only counted once
                 request.state.user_rate_limit_processed = True
                 # Will raise if rate limit is reached.
-                await rate_limiter.hit('auth_uid', user_id)
+                # Handle case where rate_limiter might be None (initialization failed)
+                global rate_limiter
+                if rate_limiter is None:
+                    logger.warning(
+                        'Rate limiter was None, attempting to reinitialize...'
+                    )
+                    try:
+                        rate_limiter = create_redis_rate_limiter(
+                            '10/second; 100/minute'
+                        )
+                        logger.info('Rate limiter reinitialized successfully')
+                    except Exception as e:
+                        logger.error(f'Failed to reinitialize rate limiter: {e}')
+                        # Continue without rate limiting if Redis is unavailable
+                        pass
+                if rate_limiter is not None:
+                    await rate_limiter.hit('auth_uid', user_id)
         return instance
 
     @classmethod

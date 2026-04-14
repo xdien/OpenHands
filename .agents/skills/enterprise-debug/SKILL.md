@@ -94,6 +94,11 @@ mcp--playwright--browser_type: element="Input field", ref="input_ref", text="tex
 - **Backend Host**: ai.canthotouring.com
 - **TLS**: disabled (false)
 
+### Apache2 Configuration
+- **Config File**: `/etc/apache2/sites-available/ai.canthotouring.com.conf`
+- **Web Server**: Apache2 (replaced nginx)
+- **SSL**: Enabled via Let's Encrypt
+
 ## Quick Commands
 
 ### Start Enterprise Server
@@ -111,10 +116,25 @@ pkill -f "uvicorn enterprise.saas_server"
 tail -100 /tmp/enterprise-server.log
 ```
 
-### Reset PostgreSQL Password (if authentication fails)
+### Apache2 Commands
 ```bash
-docker exec openhands-postgres psql -U postgres -d postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+# Check Apache2 status
+sudo systemctl status apache2
+
+# Check Apache2 error logs
+sudo tail -100 /var/log/apache2/error.log
+
+# Check Apache2 access logs
+sudo tail -100 /var/log/apache2/access.log
+
+# Test Apache2 config
+sudo apache2ctl configtest
+
+# View site config (read-only)
+cat /etc/apache2/sites-available/ai.canthotouring.com.conf
 ```
+
+**Note**: Apache2 is managed manually. Only read config and check status. Report errors to user for manual intervention.
 
 ### Check Server Status
 ```bash
@@ -177,15 +197,6 @@ email_verified = access_token_payload.get('email_verified', True)
 
 **Root Cause**: PostgreSQL password not persisted after container restart
 
-**Quick Fix**:
-```bash
-docker exec openhands-postgres psql -U postgres -d postgres -c "ALTER USER postgres WITH PASSWORD 'postgres';"
-```
-
-**Permanent Fix**: Set POSTGRES_PASSWORD environment variable in docker-compose or use a volume for PostgreSQL data.
-
-### 4. Database Connection Issues
-
 **Check PostgreSQL Status**:
 ```bash
 docker ps | grep postgres
@@ -197,7 +208,7 @@ docker logs openhands-postgres
 docker exec openhands-postgres psql -U postgres -d openhands -c "SELECT 1;"
 ```
 
-### 5. Redis Connection Issues
+### 4. Redis Connection Issues
 
 **Check Redis Status**:
 ```bash
@@ -285,14 +296,18 @@ npm run lint:fix && npm run build
 ## Troubleshooting Checklist
 
 1. [ ] Is the enterprise server running? (`ps aux | grep uvicorn`)
-2. [ ] Is PostgreSQL running? (`docker ps | grep postgres`)
-3. [ ] Is Redis running? (`docker ps | grep redis`)
-4. [ ] Check server logs for errors (`tail -100 /tmp/enterprise-server.log`)
-5. [ ] Verify JWT token contains required fields
-6. [ ] Check if email_verified is causing issues
-7. [ ] Verify database password is correct
-8. [ ] Use MCP Web tools to check frontend network requests
-9. [ ] Check browser console for errors
+2. [ ] Is Apache2 running? (`sudo systemctl status apache2`)
+3. [ ] Is PostgreSQL running? (`docker ps | grep postgres`)
+4. [ ] Is Redis running? (`docker ps | grep redis`)
+5. [ ] Check server logs for errors (`tail -100 /tmp/enterprise-server.log`)
+6. [ ] Check Apache2 logs for errors (`sudo tail -100 /var/log/apache2/error.log`)
+7. [ ] Verify Apache2 config syntax (`sudo apache2ctl configtest`) - Report errors to user
+8. [ ] Verify JWT token contains required fields
+9. [ ] Check if email_verified is causing issues
+10. [ ] Use MCP Web tools to check frontend network requests
+11. [ ] Check browser console for errors
+
+**Important**: Apache2 config changes and restarts are done manually by the user. AI only reads and reports issues.
 
 ## Related Documentation
 
