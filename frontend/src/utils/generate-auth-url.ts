@@ -13,7 +13,14 @@ export const generateAuthUrl = (
   // Use HTTPS protocol unless the host is localhost
   const protocol =
     requestUrl.hostname === "localhost" ? requestUrl.protocol : "https:";
-  const redirectUri = `${protocol}//${requestUrl.host}/oauth/keycloak/callback`;
+
+  // Determine callback path based on provider
+  const callbackPath =
+    identityProvider === "enterprise_sso"
+      ? "/oauth/enterprise/callback"
+      : "/oauth/keycloak/callback";
+
+  const redirectUri = `${protocol}//${requestUrl.host}${callbackPath}`;
 
   let finalAuthUrl: string;
 
