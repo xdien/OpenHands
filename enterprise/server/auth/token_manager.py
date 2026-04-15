@@ -160,15 +160,25 @@ class TokenManager:
         self, code: str, redirect_uri: str
     ) -> tuple[str | None, str | None]:
         """Exchange authorization code for tokens from Enterprise SSO provider.
-
+        
         Args:
             code: Authorization code from OAuth2 flow
             redirect_uri: Same redirect URI used in authorization request
-
+            
         Returns:
             Tuple of (access_token, refresh_token) or (None, None) on error
         """
         try:
+            logger.debug(f'Enterprise SSO config: URL={ENTERPRISE_SSO_AUTH_URL}, Client ID={ENTERPRISE_SSO_CLIENT_ID}')
+            
+            if not ENTERPRISE_SSO_AUTH_URL:
+                logger.error('ENTERPRISE_SSO_AUTH_URL is not configured')
+                return None, None
+            
+            if not ENTERPRISE_SSO_CLIENT_ID:
+                logger.error('ENTERPRISE_SSO_CLIENT_ID is not configured')
+                return None, None
+            
             async with httpx.AsyncClient() as client:
                 token_response = await client.post(
                     f'{ENTERPRISE_SSO_AUTH_URL}/oauth/token',
@@ -181,15 +191,23 @@ class TokenManager:
                     },
                     headers={'Content-Type': 'application/x-www-form-urlencoded'},
                 )
-
+                
                 token_response.raise_for_status()
                 tokens = token_response.json()
-
+                
                 logger.debug(f'Enterprise SSO token response: {tokens}')
-
-                if 'access_token' not in tokens or 'refresh_token' not in tokens:
+                
+                if (
+                    'access_token' not in tokens
+                    or 'refresh_token' not in tokens
+                ):
                     logger.error('Missing either access or refresh token in response')
                     return None, None
+                    
+                return tokens['access_token'], tokens['refresh_token']
+        except Exception:
+            logger.exception('Exception when getting Enterprise SSO tokens')
+            return None, None
 
                 return tokens['access_token'], tokens['refresh_token']
         except Exception:
