@@ -9,7 +9,7 @@ KEYCLOAK_REALM_NAME = os.getenv('KEYCLOAK_REALM_NAME', '')
 KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', '')
 KEYCLOAK_CLIENT_SECRET = os.getenv('KEYCLOAK_CLIENT_SECRET', '')
 KEYCLOAK_SERVER_URL_EXT = os.getenv(
-    'KEYCLOAK_SERVER_URL_EXT', f'https://{os.getenv("AUTH_WEB_HOST", "")}'
+    'KEYCLOAK_SERVER_URL_EXT', f"https://{os.getenv('AUTH_WEB_HOST', '')}"
 ).rstrip('/')
 KEYCLOAK_ADMIN_PASSWORD = os.getenv('KEYCLOAK_ADMIN_PASSWORD', '')
 GITLAB_APP_CLIENT_ID = os.getenv('GITLAB_APP_CLIENT_ID', '').strip()
@@ -17,6 +17,9 @@ GITLAB_APP_CLIENT_SECRET = os.getenv('GITLAB_APP_CLIENT_SECRET', '').strip()
 BITBUCKET_APP_CLIENT_ID = os.getenv('BITBUCKET_APP_CLIENT_ID', '').strip()
 BITBUCKET_APP_CLIENT_SECRET = os.getenv('BITBUCKET_APP_CLIENT_SECRET', '').strip()
 ENABLE_ENTERPRISE_SSO = os.getenv('ENABLE_ENTERPRISE_SSO', '').strip()
+ENTERPRISE_SSO_CLIENT_ID = os.getenv('ENTERPRISE_SSO_CLIENT_ID', '').strip()
+ENTERPRISE_SSO_CLIENT_SECRET = os.getenv('ENTERPRISE_SSO_CLIENT_SECRET', '').strip()
+ENTERPRISE_SSO_AUTH_URL = os.getenv('ENTERPRISE_SSO_AUTH_URL', '').rstrip('/')
 ENABLE_JIRA = os.environ.get('ENABLE_JIRA', 'false') == 'true'
 ENABLE_JIRA_DC = os.environ.get('ENABLE_JIRA_DC', 'false') == 'true'
 ENABLE_LINEAR = os.environ.get('ENABLE_LINEAR', 'false') == 'true'

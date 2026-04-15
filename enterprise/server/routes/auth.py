@@ -553,6 +553,134 @@ async def github_dummy_callback(request: Request):
     return RedirectResponse(web_url, status_code=302)
 
 
+@oauth_router.get('/enterprise/callback')
+async def enterprise_sso_callback(
+    request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+    user_authorizer: UserAuthorizer = depends_user_authorizer(),
+):
+    """Callback handler for Enterprise SSO OAuth2 flow.
+
+    Exchanges authorization code for tokens and authenticates user.
+    """
+    # Extract redirect URL from state
+    redirect_url, _, invitation_token = _extract_oauth_state(state)
+
+    if redirect_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Missing state in request params',
+        )
+
+    if error:
+        logger.error(f'Enterprise SSO auth error: {error}')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'Authentication error: {error}',
+        )
+
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Missing code in request params',
+        )
+
+    web_url = get_web_url(request)
+    redirect_uri = f'{web_url}/oauth/enterprise/callback'
+
+    # Exchange code for tokens
+    access_token, refresh_token = await token_manager.get_enterprise_sso_tokens(
+        code, redirect_uri
+    )
+
+    if not access_token or not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Problem retrieving tokens from Enterprise SSO',
+        )
+
+    # Get user info from Enterprise SSO
+    user_info_dict = await token_manager.get_enterprise_sso_user_info(access_token)
+
+    if not user_info_dict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Problem retrieving user info from Enterprise SSO',
+        )
+
+    logger.debug(f'Enterprise SSO user info: {user_info_dict}')
+
+    # Extract user details
+    email = user_info_dict.get('email')
+    user_id = user_info_dict.get('sub')
+
+    if not email or not user_id:
+        logger.error(f'Missing email or sub in user info: {user_info_dict}')
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Invalid user info from Enterprise SSO',
+        )
+
+    # Authorize user - use user_info_dict directly (authorizer accepts dict-like)
+    authorization = await user_authorizer.authorize_user(user_info_dict)  # type: ignore
+
+    if not authorization.success:
+        if authorization.error_detail == 'duplicate_email':
+            try:
+                existing_user = await UserStore.get_user_by_id(user_id)
+                if not existing_user:
+                    logger.info(f'Duplicate email rejection for user {user_id}')
+            except Exception as e:
+                logger.warning(f'Error checking existing user: {e}')
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=authorization.error_detail,
+        )
+
+    # Create or update user in database
+    user = await UserStore.get_user_by_id(user_id)
+    if not user:
+        user = await UserStore.create_user(user_id, user_info_dict)
+    else:
+        await UserStore.backfill_contact_name(user_id, user_info_dict)
+        await UserStore.backfill_user_email(user_id, user_info_dict)
+
+    if not user:
+        logger.error(f'Failed to authenticate user {email}')
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f'Failed to authenticate user {email}',
+        )
+
+    logger.info(f'Logging in user {str(user.id)} in org {user.current_org_id}')
+
+    # Process invitation if present
+    if invitation_token:
+        try:
+            invitation_service = OrgInvitationService()
+            await invitation_service.accept_invitation(invitation_token, user.id)
+            logger.info(f'Invitation accepted for user {user.id}')
+        except (
+            InvitationInvalidError,
+            InvitationExpiredError,
+            EmailMismatchError,
+            UserAlreadyMemberError,
+        ) as e:
+            logger.warning(f'Invitation processing failed: {e}')
+        except Exception as e:
+            logger.exception(f'Unexpected error processing invitation: {e}')
+
+    # Store refresh token for later use
+    await token_manager.store_offline_token(
+        user_id=user_id, offline_token=refresh_token
+    )
+
+    return RedirectResponse(redirect_url if redirect_url else web_url, status_code=302)
+
+
 @api_router.post('/authenticate')
 async def authenticate(request: Request):
     try:

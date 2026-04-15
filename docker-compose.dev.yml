@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: openhands_postgres
+    environment:
+      POSTGRES_DB: openhands
+      POSTGRES_USER: openhands_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-OhD3vP@ssw0rd!2026#Secure}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openhands_user -d openhands"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c max_connections=200
+
+  redis:
+    image: redis:7-alpine
+    container_name: openhands_redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-R3d1s@S3cur3#2026!Key}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a '${REDIS_PASSWORD:-R3d1s@S3cur3#2026!Key}' ping || redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-R3d1s@S3cur3#2026!Key}
+
+volumes:
+  postgres_data:
+  redis_data:

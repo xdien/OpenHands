@@ -26,6 +26,9 @@ from server.auth.constants import (
     BITBUCKET_DATA_CENTER_HOST,
     BITBUCKET_DATA_CENTER_TOKEN_URL,
     DUPLICATE_EMAIL_CHECK,
+    ENTERPRISE_SSO_AUTH_URL,
+    ENTERPRISE_SSO_CLIENT_ID,
+    ENTERPRISE_SSO_CLIENT_SECRET,
     GITHUB_APP_CLIENT_ID,
     GITHUB_APP_CLIENT_SECRET,
     GITLAB_APP_CLIENT_ID,
@@ -152,6 +155,67 @@ class TokenManager:
         except Exception:
             logger.exception('Exception when getting Keycloak tokens')
             return None, None
+
+    async def get_enterprise_sso_tokens(
+        self, code: str, redirect_uri: str
+    ) -> tuple[str | None, str | None]:
+        """Exchange authorization code for tokens from Enterprise SSO provider.
+
+        Args:
+            code: Authorization code from OAuth2 flow
+            redirect_uri: Same redirect URI used in authorization request
+
+        Returns:
+            Tuple of (access_token, refresh_token) or (None, None) on error
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                token_response = await client.post(
+                    f'{ENTERPRISE_SSO_AUTH_URL}/oauth/token',
+                    data={
+                        'grant_type': 'authorization_code',
+                        'code': code,
+                        'redirect_uri': redirect_uri,
+                        'client_id': ENTERPRISE_SSO_CLIENT_ID,
+                        'client_secret': ENTERPRISE_SSO_CLIENT_SECRET,
+                    },
+                    headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                )
+
+                token_response.raise_for_status()
+                tokens = token_response.json()
+
+                logger.debug(f'Enterprise SSO token response: {tokens}')
+
+                if 'access_token' not in tokens or 'refresh_token' not in tokens:
+                    logger.error('Missing either access or refresh token in response')
+                    return None, None
+
+                return tokens['access_token'], tokens['refresh_token']
+        except Exception:
+            logger.exception('Exception when getting Enterprise SSO tokens')
+            return None, None
+
+    async def get_enterprise_sso_user_info(self, access_token: str) -> dict | None:
+        """Get user info from Enterprise SSO userinfo endpoint.
+
+        Args:
+            access_token: Valid access token from Enterprise SSO
+
+        Returns:
+            User info dict or None on error
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f'{ENTERPRISE_SSO_AUTH_URL}/oauth/userinfo',
+                    headers={'Authorization': f'Bearer {access_token}'},
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception:
+            logger.exception('Exception when getting Enterprise SSO user info')
+            return None
 
     async def verify_keycloak_token(
         self, keycloak_token: str, refresh_token: str

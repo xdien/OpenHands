@@ -1,0 +1,6 @@
+- MANDATORY PORT CHECK: Before running the application, you MUST read the PORT from the .env file and check if it is already in use using the command: lsof -i :[PORT].
+- NEVER assume the environment is clean. Always verify running processes before starting new ones.
+- READ LOGS: You must CLEARLY read and analyze terminal logs immediately after execution to verify success or failure.
+- DATABASE DEBUGGING: Since this is a local dev environment, ALWAYS read the .env file to retrieve database credentials if DB debugging is required.
+- NO DEPLOYMENT EXCUSES: The current host is the local machine. There is NO external deployment. NEVER blame "missing logs" on deployment or restart issues.
+- LOGIC INVESTIGATION: If logs do not appear, provide a CLEAR investigation. Check if code logic (if/else) was met or if a rebuild is required. NEVER ignore silent failures.
