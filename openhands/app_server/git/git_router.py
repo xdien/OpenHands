@@ -67,7 +67,7 @@ async def search_user_installations(
     provider_tokens = await user_context.get_provider_tokens()
     if not provider_tokens:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail='Git provider token required (such as GitHub).',
         )
 
@@ -133,7 +133,7 @@ async def search_repositories(
     provider_tokens = await user_context.get_provider_tokens()
     if not provider_tokens:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail='Git provider token required (such as GitHub).',
         )
 
@@ -224,7 +224,7 @@ async def search_branches(
     provider_tokens = await user_context.get_provider_tokens()
     if not provider_tokens:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail='Git provider token required (such as GitHub).',
         )
 
@@ -296,7 +296,7 @@ async def search_suggested_tasks(
     provider_tokens = await user_context.get_provider_tokens()
     if not provider_tokens:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail='Git provider token required (such as GitHub).',
         )
 

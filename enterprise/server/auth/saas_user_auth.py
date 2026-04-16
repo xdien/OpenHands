@@ -334,6 +334,7 @@ class SaasUserAuth(UserAuth):
             raise NoCredentialsError('failed to authenticate')
         if not getattr(request.state, 'user_rate_limit_processed', False):
             user_id = await instance.get_user_id()
+            logger.info(f'[RATE_LIMIT_DEBUG] user_id={user_id}, instance_type={type(instance).__name__}, request_path={request.url.path}')
             if user_id:
                 # Ensure requests are only counted once
                 request.state.user_rate_limit_processed = True

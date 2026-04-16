@@ -87,10 +87,14 @@ class Org(Base):  # type: ignore
 
     @property
     def llm_api_key(self) -> SecretStr | None:
-        if self._llm_api_key:
+        if not self._llm_api_key:
+            return None
+        try:
             decrypted = decrypt_value(self._llm_api_key)
             return SecretStr(decrypted)
-        return None
+        except ValueError:
+            # Encryption key not found, return None
+            return None
 
     @llm_api_key.setter
     def llm_api_key(self, value: str | SecretStr | None):
@@ -99,10 +103,14 @@ class Org(Base):  # type: ignore
 
     @property
     def search_api_key(self) -> SecretStr | None:
-        if self._search_api_key:
+        if not self._search_api_key:
+            return None
+        try:
             decrypted = decrypt_value(self._search_api_key)
             return SecretStr(decrypted)
-        return None
+        except ValueError:
+            # Encryption key not found, return None
+            return None
 
     @search_api_key.setter
     def search_api_key(self, value: str | SecretStr | None):
@@ -111,10 +119,14 @@ class Org(Base):  # type: ignore
 
     @property
     def sandbox_api_key(self) -> SecretStr | None:
-        if self._sandbox_api_key:
+        if not self._sandbox_api_key:
+            return None
+        try:
             decrypted = decrypt_value(self._sandbox_api_key)
             return SecretStr(decrypted)
-        return None
+        except ValueError:
+            # Encryption key not found, return None
+            return None
 
     @sandbox_api_key.setter
     def sandbox_api_key(self, value: str | SecretStr | None):

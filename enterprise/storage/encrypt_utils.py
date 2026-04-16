@@ -41,8 +41,8 @@ def decrypt_kwargs(encrypt_keys: list, kwargs: dict) -> dict:
             if key in encrypt_keys:
                 value = decrypt_value(value)
                 kwargs[key] = value
-        except binascii.Error:
-            pass  # Key is in legacy format...
+        except (binascii.Error, ValueError):
+            pass  # Key is in legacy format or encryption key not found...
     return kwargs
 
 
