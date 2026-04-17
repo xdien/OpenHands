@@ -8,19 +8,19 @@
 # This module belongs to the old V0 web server. The V1 application server lives under openhands/app_server/.
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
-from starlette.types import Scope, Receive, Send
+from starlette.types import Receive, Scope, Send
 
 
 class SPAStaticFiles(StaticFiles):
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         # WebSocket requests should not be handled by StaticFiles
         # They should be routed to agent servers (through proxy) or Socket.IO
-        if scope.get("type") == "websocket":
+        if scope.get('type') == 'websocket':
             # For WebSocket requests to the main app server:
             # 1. If configured properly with Nginx proxy, these should route to sandbox
             # 2. If hitting the main app, close the connection gracefully
             # This prevents AssertionError while signaling routing issue
-            await send({"type": "websocket.close", "code": 1000})
+            await send({'type': 'websocket.close', 'code': 1000})
             return
 
         # For HTTP requests, use standard StaticFiles handling
@@ -31,4 +31,4 @@ class SPAStaticFiles(StaticFiles):
             return await super().get_response(path, scope)
         except Exception:
             # FIXME: just making this HTTPException doesn't work for some reason
-            return await super().get_response("index.html", scope)
+            return await super().get_response('index.html', scope)
