@@ -1424,8 +1424,18 @@ class LiteLlmManager:
 
         Returns True if the key is found and valid, False otherwise.
         """
+        from server.logger import logger as enterprise_logger
+
         found = False
         keys = await LiteLlmManager._get_all_keys_for_user(client, keycloak_user_id)
+
+        # DEBUG: Log key verification details
+        enterprise_logger.warning(
+            f'DEBUG _verify_existing_key: user_id={keycloak_user_id}, org_id={org_id}, '
+            f'openhands_type={openhands_type}, key_value_last4={key_value[-4:] if key_value else None}, '
+            f'keys_count={len(keys)}'
+        )
+
         for key_info in keys:
             metadata = key_info.get('metadata') or {}
             team_id = key_info.get('team_id')

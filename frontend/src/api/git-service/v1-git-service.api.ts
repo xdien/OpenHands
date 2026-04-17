@@ -46,14 +46,46 @@ class V1GitService {
     const url = this.buildRuntimeUrl(conversationUrl, `/api/git/changes`);
     const headers = buildSessionHeaders(sessionApiKey);
 
-    // V1 API returns V1GitChangeStatus types, we need to map them to V0 format
-    const { data } = await axios.get<V1GitChange[]>(url, {
+    // DEBUG: Log the request details
+    console.log("[V1GitService] getGitChanges request:", {
+      url,
+      conversationUrl,
+      path,
       headers,
-      params: { path },
     });
+
+    // V1 API returns V1GitChangeStatus types, we need to map them to V0 format
+    let data: V1GitChange[];
+    try {
+      const response = await axios.get<V1GitChange[]>(url, {
+        headers,
+        params: { path },
+      });
+
+      // DEBUG: Log the response details
+      console.log("[V1GitService] getGitChanges response:", {
+        status: response.status,
+        dataType: typeof response.data,
+        isArray: Array.isArray(response.data),
+        data: response.data,
+      });
+
+      data = response.data;
+    } catch (error) {
+      console.error("[V1GitService] getGitChanges error:", error);
+      if (axios.isAxiosError(error)) {
+        console.error("[V1GitService] Axios error details:", {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status,
+        });
+      }
+      throw error;
+    }
 
     // Validate response is an array (could be HTML error page if runtime is dead)
     if (!Array.isArray(data)) {
+      console.error("[V1GitService] Invalid response - not an array:", data);
       throw new Error(
         "Invalid response from runtime - runtime may be unavailable",
       );
