@@ -13,23 +13,31 @@ function VSCodeTab() {
   const { curAgentState } = useAgentState();
   const isRuntimeStarting = RUNTIME_STARTING_STATES.includes(curAgentState);
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
-  const [isCrossProtocol, setIsCrossProtocol] = useState(false);
+  const [isCrossProtocol, setIsCrossProtocol] = useState(VSCODE_IN_NEW_TAB());
   const [iframeError, setIframeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (data?.url) {
       try {
-        const iframeProtocol = new URL(data.url).protocol;
+        const iframeUrl = new URL(data.url);
         const currentProtocol = window.location.protocol;
+        const currentHostname = window.location.hostname;
 
-        // Check if the iframe URL has a different protocol than the current page
+        // Check if the iframe URL has a different protocol OR different hostname
+        const isDifferentProtocol = iframeUrl.protocol !== currentProtocol;
+        const isDifferentHostname = iframeUrl.hostname !== currentHostname;
+
         setIsCrossProtocol(
-          VSCODE_IN_NEW_TAB() || iframeProtocol !== currentProtocol,
+          VSCODE_IN_NEW_TAB() || isDifferentProtocol || isDifferentHostname,
         );
       } catch (e) {
         // Silently handle URL parsing errors
         setIframeError(t("VSCODE$URL_PARSE_ERROR"));
+        setIsCrossProtocol(true); // Default to cross-protocol on error
       }
+    } else if (!data?.url) {
+      // No URL means we can't load in iframe
+      setIsCrossProtocol(true);
     }
   }, [data?.url]);
 
