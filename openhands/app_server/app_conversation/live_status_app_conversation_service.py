@@ -323,6 +323,15 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             body_json = start_conversation_request.model_dump(
                 mode="json", context={"expose_secrets": True}
             )
+
+            # DEBUG: Log the LLM config being sent to sandbox
+            agent_llm = body_json.get("agent", {}).get("llm", {})
+            api_key = agent_llm.get("api_key")
+            _logger.warning(
+                f'DEBUG sending to sandbox: agent.llm.api_key_last4={api_key[-4:] if api_key else None}, '
+                f'model={agent_llm.get("model")}, base_url={agent_llm.get("base_url")}'
+            )
+
             # Log hook_config to verify it's being passed
             hook_config_in_request = body_json.get("hook_config")
             _logger.debug(
@@ -911,18 +920,30 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             provider_base_url=self.openhands_provider_base_url,
         )
 
-        if model and model.startswith('bailian/'):
-            model = f"openai/{model[len('bailian/'):]}"
+        if model and model.startswith("bailian/"):
+            model = f"openai/{model[len('bailian/') :]}"
             # Cho phép người dùng ghi đè Base URL từ giao diện, nếu rỗng thì mới dùng mặc định
-            if user.llm_base_url and user.llm_base_url.strip():
-                base_url = user.llm_base_url.strip()
+            user_base_url = user.agent_settings.llm.base_url
+            if user_base_url and user_base_url.strip():
+                base_url = user_base_url.strip()
             else:
-                base_url = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1'
+                # FIX: Use correct Alibaba Cloud base URL
+                base_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
+
+        # DEBUG: Log the API key being used
+        api_key = user.agent_settings.llm.api_key
+        api_key_value = None
+        if api_key:
+            api_key_value = api_key.get_secret_value() if hasattr(api_key, 'get_secret_value') else str(api_key)
+        _logger.warning(
+            f'DEBUG _create_llm: model={model}, base_url={base_url}, '
+            f'api_key_last4={api_key_value[-4:] if api_key_value else None}'
+        )
 
         return LLM(
             model=model,
             base_url=base_url,
-            api_key=user.agent_settings.llm.api_key,
+            api_key=api_key,
             usage_id="agent",
         )
 

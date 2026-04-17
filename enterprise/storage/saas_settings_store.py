@@ -126,11 +126,12 @@ class SaasSettingsStore(SettingsStore):
         )
         effective_llm_api_key = self._get_effective_llm_api_key(org, org_member)
         if effective_llm_api_key is not None:
-            merged_agent_settings.setdefault('llm', {})['api_key'] = (
-                effective_llm_api_key.get_secret_value()
-                if isinstance(effective_llm_api_key, SecretStr)
-                else effective_llm_api_key
+            api_key_value = effective_llm_api_key.get_secret_value() if isinstance(effective_llm_api_key, SecretStr) else effective_llm_api_key
+            logger.warning(
+                f'DEBUG load: user_id={self.user_id}, org_id={org_id}, '
+                f'effective_llm_api_key_last4={api_key_value[-4:] if api_key_value else None}'
             )
+            merged_agent_settings.setdefault('llm', {})['api_key'] = api_key_value
         else:
             logger.warning(
                 f'No effective LLM API key found for user {self.user_id} '
@@ -209,10 +210,34 @@ class SaasSettingsStore(SettingsStore):
             llm_base_url = item.agent_settings.llm.base_url
             normalized_llm_base_url = llm_base_url.rstrip('/') if llm_base_url else None
             normalized_managed_base_url = LITE_LLM_API_URL.rstrip('/')
+
+            # FIX: Only use managed LiteLLM key when:
+            # 1. User explicitly uses LiteLLM base_url, OR
+            # 2. User uses OpenHands model WITHOUT any custom base_url
+            # If user has a custom base_url (like Alibaba Cloud), preserve their API key
+            # by NOT treating it as a managed key
             uses_managed_llm_key = (
                 normalized_llm_base_url == normalized_managed_base_url
                 or (normalized_llm_base_url is None and is_openhands_model(llm_model))
             )
+
+            # DEBUG: Log the decision
+            logger.warning(
+                f'DEBUG store: model={llm_model}, base_url={llm_base_url}, '
+                f'normalized_base_url={normalized_llm_base_url}, '
+                f'managed_url={normalized_managed_base_url}, '
+                f'is_openhands_model={is_openhands_model(llm_model)}, '
+                f'uses_managed_llm_key={uses_managed_llm_key}'
+            )
+
+            # FIX: If user has a custom base_url (non-LiteLLM), don't use managed key
+            # This preserves user's custom API keys (like Alibaba Cloud, OpenAI, Anthropic)
+            if normalized_llm_base_url is not None and normalized_llm_base_url != normalized_managed_base_url:
+                logger.warning(
+                    f'DEBUG store: Custom base_url detected ({normalized_llm_base_url}) - '
+                    f'NOT using managed LiteLLM key, preserving user API key'
+                )
+                uses_managed_llm_key = False
 
             if uses_managed_llm_key:
                 await self._ensure_api_key(
@@ -309,6 +334,14 @@ class SaasSettingsStore(SettingsStore):
         """
 
         llm_api_key = item.agent_settings.llm.api_key
+        llm_model = item.agent_settings.llm.model
+
+        # DEBUG: Log the key verification flow
+        logger.warning(
+            f'DEBUG _ensure_api_key: user_id={self.user_id}, org_id={org_id}, '
+            f'model={llm_model}, openhands_type={openhands_type}, '
+            f'has_llm_api_key={llm_api_key is not None}'
+        )
 
         # First, check if our current key is valid
         if llm_api_key and not await LiteLlmManager.verify_existing_key(
@@ -317,6 +350,10 @@ class SaasSettingsStore(SettingsStore):
             org_id,
             openhands_type=openhands_type,
         ):
+            logger.warning(
+                f'DEBUG _ensure_api_key: verify_existing_key returned False - '
+                f'will generate new key for model={llm_model}'
+            )
             if openhands_type:
                 generated_key = await LiteLlmManager.generate_key(
                     self.user_id,

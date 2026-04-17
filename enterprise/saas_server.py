@@ -180,8 +180,13 @@ ws_route = WebSocketRoute(
     "/ws/{sandbox_port}/sockets/events/{conversation_id}",
     websocket_proxy_to_sandbox,
 )
+ws_planning_route = WebSocketRoute(
+    "/ws/{sandbox_port}/sockets/events/{conversation_id}/planning/{planning_conversation_id}",
+    websocket_proxy_to_sandbox,
+)
 base_app.routes.insert(0, ws_route)
-_logger.info(f"✅ WebSocket proxy route registered: {ws_route.path}")
+base_app.routes.insert(0, ws_planning_route)
+_logger.info(f"✅ WebSocket proxy routes registered: main + planning")
 
 # Debug: List all routes
 for i, route in enumerate(base_app.routes[:5]):
