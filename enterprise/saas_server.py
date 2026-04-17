@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ensure SAAS configuration is used
-if not os.getenv('OPENHANDS_CONFIG_CLS'):
-    os.environ['OPENHANDS_CONFIG_CLS'] = 'server.config.SaaSServerConfig'
+if not os.getenv("OPENHANDS_CONFIG_CLS"):
+    os.environ["OPENHANDS_CONFIG_CLS"] = "server.config.SaaSServerConfig"
 
 import socketio  # noqa: E402
 from fastapi import Request, status  # noqa: E402
@@ -68,14 +68,25 @@ from openhands.server.middleware import (  # noqa: E402
 )
 from openhands.server.static import SPAStaticFiles  # noqa: E402
 
-directory = os.getenv('FRONTEND_DIRECTORY', './frontend/build')
+# Import WebSocket proxy handler for sandbox routing
+from openhands.app_server.websocket_proxy.websocket_proxy_router import (
+    websocket_proxy_to_sandbox,
+)  # noqa: E402
+from starlette.routing import WebSocketRoute  # noqa: E402
+
+# Debug: Print routes to verify WebSocket route is registered
+import logging
+
+_logger = logging.getLogger(__name__)
+
+directory = os.getenv("FRONTEND_DIRECTORY", "./frontend/build")
 
 patch_mcp_server()
 
 
-@base_app.get('/saas')
+@base_app.get("/saas")
 def is_saas():
-    return {'saas': True}
+    return {"saas": True}
 
 
 base_app.include_router(readiness_router)  # Add routes for readiness checks
@@ -98,7 +109,7 @@ if GITHUB_APP_CLIENT_ID:
     from server.routes.integration.github import github_integration_router  # noqa: E402
 
     # Bludgeon mypy into not deleting my import
-    logger.debug(f'Loaded {GithubV1CallbackProcessor.__name__}')
+    logger.debug(f"Loaded {GithubV1CallbackProcessor.__name__}")
 
     base_app.include_router(
         github_integration_router
@@ -154,13 +165,29 @@ base_app.add_middleware(
     CORSMiddleware,
     allow_origins=PERMITTED_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 base_app.add_middleware(CacheControlMiddleware)
-base_app.middleware('http')(SetAuthCookieMiddleware())
+base_app.middleware("http")(SetAuthCookieMiddleware())
 
-base_app.mount('/', SPAStaticFiles(directory=directory, html=True), name='dist')
+# Add WebSocket proxy routes BEFORE SPAStaticFiles mount
+# These routes handle WebSocket connections to sandbox agent servers
+# They must be added BEFORE the '/' mount to ensure they are matched first
+# Path pattern: /ws/{sandbox_port}/sockets/events/{conversation_id}
+_logger.info("🔌 Registering WebSocket proxy routes...")
+ws_route = WebSocketRoute(
+    "/ws/{sandbox_port}/sockets/events/{conversation_id}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_route)
+_logger.info(f"✅ WebSocket proxy route registered: {ws_route.path}")
+
+# Debug: List all routes
+for i, route in enumerate(base_app.routes[:5]):
+    _logger.info(f"Route {i}: {route.path if hasattr(route, 'path') else route}")
+
+base_app.mount("/", SPAStaticFiles(directory=directory, html=True), name="dist")
 
 
 setup_rate_limit_handler(base_app)
@@ -170,14 +197,14 @@ setup_rate_limit_handler(base_app)
 async def no_credentials_exception_handler(request: Request, exc: NoCredentialsError):
     logger.info(exc.__class__.__name__)
     return JSONResponse(
-        {'error': NoCredentialsError.__name__}, status.HTTP_401_UNAUTHORIZED
+        {"error": NoCredentialsError.__name__}, status.HTTP_401_UNAUTHORIZED
     )
 
 
 @base_app.exception_handler(ExpiredError)
 async def expired_exception_handler(request: Request, exc: ExpiredError):
     logger.info(exc.__class__.__name__)
-    return JSONResponse({'error': ExpiredError.__name__}, status.HTTP_401_UNAUTHORIZED)
+    return JSONResponse({"error": ExpiredError.__name__}, status.HTTP_401_UNAUTHORIZED)
 
 
 app = socketio.ASGIApp(sio, other_asgi_app=base_app)
