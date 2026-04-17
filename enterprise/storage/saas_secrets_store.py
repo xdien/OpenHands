@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from base64 import b64decode, b64encode
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from cryptography.fernet import Fernet
+from pydantic import SecretStr
 from sqlalchemy import delete, select
 from storage.database import a_session_maker
 from storage.stored_custom_secrets import StoredCustomSecrets
@@ -12,8 +15,13 @@ from storage.user_store import UserStore
 
 from openhands.core.config.openhands_config import OpenHandsConfig
 from openhands.core.logger import openhands_logger as logger
+from openhands.integrations.provider import ProviderToken
+from openhands.integrations.service_types import ProviderType
 from openhands.storage.data_models.secrets import Secrets
 from openhands.storage.secrets.secrets_store import SecretsStore
+
+# Special key for storing provider tokens in custom_secrets table
+PROVIDER_TOKENS_KEY = '__provider_tokens__'
 
 
 @dataclass
@@ -41,15 +49,34 @@ class SaasSecretsStore(SecretsStore):
                 return Secrets()
 
             kwargs = {}
+            provider_tokens = {}
+
             for secret in settings:
-                kwargs[secret.secret_name] = {
-                    'secret': secret.secret_value,
-                    'description': secret.description,
-                }
+                if secret.secret_name == PROVIDER_TOKENS_KEY:
+                    # Parse provider tokens from JSON
+                    try:
+                        tokens_json = json.loads(secret.secret_value)
+                        for provider_type_str, token_data in tokens_json.items():
+                            provider_type = ProviderType(provider_type_str)
+                            provider_tokens[provider_type] = ProviderToken(
+                                token=SecretStr(token_data['token']) if token_data.get('token') else None,
+                                user_id=token_data.get('user_id'),
+                                host=token_data.get('host'),
+                            )
+                    except (json.JSONDecodeError, KeyError, ValueError) as e:
+                        logger.error(f'Error parsing provider tokens: {e}')
+                else:
+                    kwargs[secret.secret_name] = {
+                        'secret': secret.secret_value,
+                        'description': secret.description,
+                    }
 
             self._decrypt_kwargs(kwargs)
 
-            return Secrets(custom_secrets=kwargs)  # type: ignore[arg-type]
+            return Secrets(
+                custom_secrets=kwargs,  # type: ignore[arg-type]
+                provider_tokens=MappingProxyType(provider_tokens) if provider_tokens else MappingProxyType({}),
+            )
 
     async def store(self, item: Secrets):
         user = await UserStore.get_user_by_id(self.user_id)
@@ -71,9 +98,10 @@ class SaasSecretsStore(SecretsStore):
 
             # Prepare the new secrets data
             kwargs = item.model_dump(context={'expose_secrets': True})
-            del kwargs[
-                'provider_tokens'
-            ]  # Assuming provider_tokens is not part of custom_secrets
+
+            # Extract provider_tokens before encryption
+            provider_tokens_data = kwargs.pop('provider_tokens', {})
+
             self._encrypt_kwargs(kwargs)
 
             secrets_json = kwargs.get('custom_secrets', {})
@@ -94,6 +122,27 @@ class SaasSecretsStore(SecretsStore):
                     secret_name=secret_name,
                     secret_value=secret_value,
                     description=description,
+                )
+                session.add(new_secret)
+
+            # Store provider_tokens as JSON if present
+            if provider_tokens_data:
+                tokens_to_store = {}
+                for provider_type, token_data in provider_tokens_data.items():
+                    provider_type_str = provider_type.value if hasattr(provider_type, 'value') else str(provider_type)
+                    tokens_to_store[provider_type_str] = {
+                        'token': token_data.get('token'),
+                        'user_id': token_data.get('user_id'),
+                        'host': token_data.get('host'),
+                    }
+
+                provider_tokens_json = json.dumps(tokens_to_store)
+                new_secret = StoredCustomSecrets(
+                    keycloak_user_id=self.user_id,
+                    org_id=org_id,
+                    secret_name=PROVIDER_TOKENS_KEY,
+                    secret_value=provider_tokens_json,
+                    description='Git provider tokens',
                 )
                 session.add(new_secret)
 

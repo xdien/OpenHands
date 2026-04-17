@@ -256,7 +256,8 @@ function GitSettingsScreen() {
           )}
 
           <div className="flex flex-col gap-4">
-            {!isSaas && (
+            {/* Show token inputs in non-SaaS mode OR in SaaS mode when GitHub App is not configured */}
+            {(!isSaas || !config?.github_app_slug) && (
               <GitHubTokenInput
                 name="github-token-input"
                 isGitHubTokenSet={isGitHubTokenSet}
@@ -270,7 +271,7 @@ function GitSettingsScreen() {
               />
             )}
 
-            {!isSaas && (
+            {(!isSaas || !config?.github_app_slug) && (
               <GitLabTokenInput
                 name="gitlab-token-input"
                 isGitLabTokenSet={isGitLabTokenSet}
@@ -284,7 +285,7 @@ function GitSettingsScreen() {
               />
             )}
 
-            {!isSaas && (
+            {(!isSaas || !config?.github_app_slug) && (
               <BitbucketTokenInput
                 name="bitbucket-token-input"
                 isBitbucketTokenSet={isBitbucketTokenSet}
@@ -298,7 +299,7 @@ function GitSettingsScreen() {
               />
             )}
 
-            {!isSaas && (
+            {(!isSaas || !config?.github_app_slug) && (
               <BitbucketDCTokenInput
                 name="bitbucket-dc-token-input"
                 isBitbucketDCTokenSet={isBitbucketDCTokenSet}
@@ -312,7 +313,7 @@ function GitSettingsScreen() {
               />
             )}
 
-            {!isSaas && (
+            {(!isSaas || !config?.github_app_slug) && (
               <AzureDevOpsTokenInput
                 name="azure-devops-token-input"
                 isAzureDevOpsTokenSet={isAzureDevOpsTokenSet}
@@ -326,7 +327,7 @@ function GitSettingsScreen() {
               />
             )}
 
-            {!isSaas && (
+            {(!isSaas || !config?.github_app_slug) && (
               <ForgejoTokenInput
                 name="forgejo-token-input"
                 isForgejoTokenSet={isForgejoTokenSet}

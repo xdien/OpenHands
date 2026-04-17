@@ -187,6 +187,12 @@ class SaasUserAuth(UserAuth):
 
         user_secrets = await self.get_secrets()
 
+        # First, add tokens from user secrets (manually entered tokens via /api/add-git-providers)
+        if user_secrets and user_secrets.provider_tokens:
+            for provider_type, provider_token in user_secrets.provider_tokens.items():
+                if provider_token.token:  # Only add if token exists
+                    provider_tokens[provider_type] = provider_token
+
         try:
             # TODO: I think we can do this in a single request if we refactor
             async with a_session_maker() as session:
@@ -334,7 +340,6 @@ class SaasUserAuth(UserAuth):
             raise NoCredentialsError('failed to authenticate')
         if not getattr(request.state, 'user_rate_limit_processed', False):
             user_id = await instance.get_user_id()
-            logger.info(f'[RATE_LIMIT_DEBUG] user_id={user_id}, instance_type={type(instance).__name__}, request_path={request.url.path}')
             if user_id:
                 # Ensure requests are only counted once
                 request.state.user_rate_limit_processed = True
