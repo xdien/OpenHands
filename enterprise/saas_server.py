@@ -216,6 +216,25 @@ http_ws_api_route = Route(
 base_app.routes.insert(0, http_ws_api_route)
 _logger.info(f"✅ HTTP WS proxy routes registered: /ws/{{sandbox_port}}/api/*")
 
+# Add WebSocket proxy route for /ws/{sandbox_port}/{path:path}
+# This handles VSCode browser WebSocket connections to sandbox
+_logger.info("🔌 Registering WebSocket proxy routes for /ws/{sandbox_port}/{path:path}...")
+ws_generic_route = WebSocketRoute(
+    "/ws/{sandbox_port}/{path:path}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_generic_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /ws/{{sandbox_port}}/{{path:path}}")
+
+# Add WebSocket proxy route for /ws/{sandbox_port}/ root path
+_logger.info("🔌 Registering WebSocket proxy routes for /ws/{sandbox_port}/...")
+ws_root_route = WebSocketRoute(
+    "/ws/{sandbox_port}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_root_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /ws/{{sandbox_port}}/")
+
 # Debug: List all routes
 for i, route in enumerate(base_app.routes[:5]):
     _logger.info(f"Route {i}: {route.path if hasattr(route, 'path') else route}")
