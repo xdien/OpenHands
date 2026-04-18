@@ -166,7 +166,8 @@ async def websocket_proxy_to_sandbox(websocket: WebSocket) -> None:
         except WebSocketDisconnect:
             pass
         except Exception as e:
-            logger.error(f'Error relaying frontend to sandbox: {e}')
+            # Log as debug to avoid noise during normal connection close
+            logger.debug(f'Frontend disconnected: {e}')
         finally:
             if ws:
                 try:
@@ -188,7 +189,8 @@ async def websocket_proxy_to_sandbox(websocket: WebSocket) -> None:
         except websockets.exceptions.ConnectionClosed:
             pass
         except Exception as e:
-            logger.error(f'Error relaying sandbox to frontend: {e}')
+            # Log as debug to avoid noise during normal connection close
+            logger.debug(f'Sandbox disconnected: {e}')
         finally:
             try:
                 await websocket.close(code=1000, reason='Sandbox disconnected')
