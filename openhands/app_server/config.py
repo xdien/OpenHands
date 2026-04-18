@@ -303,6 +303,11 @@ def config_from_env() -> AppServerConfig:
                 docker_sandbox_kwargs['proxy_url_pattern'] = os.environ[
                     'SANDBOX_PROXY_URL_PATTERN'
                 ]
+            # VSCode-specific proxy URL pattern (overrides proxy_url_pattern for VSCode)
+            if os.getenv('VSCODE_PROXY_URL_PATTERN'):
+                docker_sandbox_kwargs['vscode_proxy_url_pattern'] = os.environ[
+                    'VSCODE_PROXY_URL_PATTERN'
+                ]
             # Allow configuring sandbox startup grace period
             # This is useful for slower machines or cloud environments where
             # the agent-server container takes longer to initialize
