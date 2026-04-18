@@ -76,7 +76,14 @@ from openhands.server.static import SPAStaticFiles  # noqa: E402
 from openhands.app_server.websocket_proxy.websocket_proxy_router import (
     websocket_proxy_to_sandbox,
 )  # noqa: E402
-from starlette.routing import WebSocketRoute  # noqa: E402
+
+# Import HTTP proxy handler for sandbox services (VSCode, web apps, etc.)
+from openhands.app_server.http_proxy.http_proxy_router import (
+    http_proxy_to_sandbox,
+    http_ws_proxy_to_sandbox,
+)  # noqa: E402
+
+from starlette.routing import Route, WebSocketRoute  # noqa: E402
 
 # Debug: Print routes to verify WebSocket route is registered
 import logging
@@ -190,6 +197,27 @@ ws_planning_route = WebSocketRoute(
 base_app.routes.insert(0, ws_route)
 base_app.routes.insert(0, ws_planning_route)
 _logger.info(f"✅ WebSocket proxy routes registered: main + planning")
+
+# Add HTTP proxy routes BEFORE SPAStaticFiles mount
+# These routes handle HTTP requests to sandbox services (VSCode, web apps, etc.)
+# Path pattern: /proxy/{sandbox_port}/...
+_logger.info("🔌 Registering HTTP proxy routes...")
+http_route = Route(
+    "/proxy/{sandbox_port}/{path:path}",
+    http_proxy_to_sandbox,
+)
+base_app.routes.insert(0, http_route)
+_logger.info(f"✅ HTTP proxy routes registered: /proxy/{{sandbox_port}}/...")
+
+# Add HTTP proxy route for /ws/{sandbox_port}/api/* pattern
+# This provides an alternative URL pattern for accessing sandbox APIs
+_logger.info("🔌 Registering HTTP WS proxy routes for /ws/{sandbox_port}/api/*...")
+http_ws_api_route = Route(
+    "/ws/{sandbox_port}/api/{path:path}",
+    http_ws_proxy_to_sandbox,
+)
+base_app.routes.insert(0, http_ws_api_route)
+_logger.info(f"✅ HTTP WS proxy routes registered: /ws/{{sandbox_port}}/api/*")
 
 # Debug: List all routes
 for i, route in enumerate(base_app.routes[:5]):
