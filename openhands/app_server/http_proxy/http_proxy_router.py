@@ -73,6 +73,21 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
     # Build query string
     query_string = str(request.url.query) if request.url.query else ''
 
+    # Extract tkn from query string and pass via header for VSCode authentication
+    # This ensures the token survives redirects
+    token = None
+    if query_string:
+        parsed = parse_qs(query_string, keep_blank_values=True)
+        if 'tkn' in parsed:
+            token = parsed['tkn'][0]
+            # Remove tkn from query string to avoid duplication
+            filtered_params = {k: v for k, v in parsed.items() if k != 'tkn'}
+            if filtered_params:
+                query_string = urlencode(filtered_params, doseq=True)
+            else:
+                query_string = ''
+            logger.info(f'Extracted tkn from query for header-based auth')
+
     logger.info(f'HTTP PROXY: /proxy/{sandbox_port}/{remaining_path}')
 
     # Try to get the actual sandbox URL from the database
@@ -130,6 +145,10 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
                     request.client.host if request.client else 'unknown'
                 )
 
+                # Pass token via header for VSCode authentication (survives redirects)
+                if token:
+                    headers['X-Session-API-Key'] = token
+
                 # Log headers for debugging redirect loops
                 logger.info(
                     f'Proxy headers for {sandbox_port}: X-Forwarded-Prefix=/proxy/{sandbox_port}'
@@ -161,43 +180,12 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
                     )
                     if location:
                         # Rewrite relative redirects to include /proxy/{sandbox_port}/ prefix
+                        # NOTE: Do NOT add token to redirect - this causes redirect loops
+                        # The token should come from the original request, not be added to redirect
                         if location.startswith('/') and not location.startswith(
                             f'/proxy/{sandbox_port}'
                         ):
                             new_location = f'/proxy/{sandbox_port}{location}'
-                            # Preserve critical query parameters (tkn) from original request
-                            # Parse both URLs to merge query params intelligently
-
-                            # Parse the redirect location
-                            parsed_redirect = urlparse(new_location)
-                            redirect_params = parse_qs(
-                                parsed_redirect.query, keep_blank_values=True
-                            )
-
-                            # Parse original request query
-                            original_query = request.url.query
-                            original_params = parse_qs(
-                                original_query, keep_blank_values=True
-                            )
-
-                            # Merge: only add params from original that aren't in redirect
-                            # Special focus on 'tkn' which is critical for VSCode auth
-                            for key, values in original_params.items():
-                                if key not in redirect_params:
-                                    redirect_params[key] = values
-
-                            # Rebuild the URL with merged params
-                            merged_query = urlencode(redirect_params, doseq=True)
-                            new_location = urlunparse(
-                                (
-                                    parsed_redirect.scheme,
-                                    parsed_redirect.netloc,
-                                    parsed_redirect.path,
-                                    parsed_redirect.params,
-                                    merged_query,
-                                    parsed_redirect.fragment,
-                                )
-                            )
                             response_headers['location'] = new_location
                             response_headers['Location'] = new_location
                             logger.info(

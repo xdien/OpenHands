@@ -29,6 +29,15 @@ async def websocket_proxy_to_sandbox(websocket: WebSocket) -> None:
     sandbox_port_str = path_params.get('sandbox_port', '')
     conversation_id = path_params.get('conversation_id', '')
 
+    # Extract the remaining path (for generic /ws/{port}/{path} routes)
+    path = path_params.get('path', '')
+    if not path and conversation_id:
+        # Legacy path: /ws/{port}/sockets/events/{conversation_id}
+        path = f'sockets/events/{conversation_id}'
+    elif path and conversation_id and 'sockets/events' not in path:
+        # If both path and conversation_id exist, combine them
+        path = f'{path}/{conversation_id}'
+
     query_params = dict(websocket.query_params)
     session_api_key = query_params.get('session_api_key')
     resend_all = query_params.get('resend_all', 'false').lower() == 'true'
@@ -42,7 +51,7 @@ async def websocket_proxy_to_sandbox(websocket: WebSocket) -> None:
         await websocket.close(code=1008, reason='Invalid port')
         return
 
-    logger.info(f'WebSocket PROXY: /ws/{sandbox_port}/sockets/events/{conversation_id}')
+    logger.info(f'WebSocket PROXY: /ws/{sandbox_port}/{path}')
 
     # Try to get the actual sandbox URL from the database
     sandbox_base_url = await get_sandbox_url_for_port(sandbox_port)
@@ -78,13 +87,19 @@ async def websocket_proxy_to_sandbox(websocket: WebSocket) -> None:
     for host in hosts_to_try:
         if connected:
             break
-        sandbox_ws_url = f'ws://{host}/sockets/events/{conversation_id}'
+        # Build target URL with the actual path requested
+        target_path = f'/{path}' if path else '/'
+        sandbox_ws_url = f'ws://{host}{target_path}'
 
         params = []
         if session_api_key:
             params.append(f'session_api_key={session_api_key}')
         if resend_all:
             params.append('resend_all=true')
+        # Also pass through other query params (like reconnectionToken for VSCode)
+        for key, value in query_params.items():
+            if key not in ['session_api_key', 'resend_all']:
+                params.append(f'{key}={value}')
         if params:
             sandbox_ws_url += '?' + '&'.join(params)
 
