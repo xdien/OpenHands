@@ -150,12 +150,15 @@ class RemoteSandboxService(SandboxService):
                     exposed_urls.append(
                         ExposedUrl(name=AGENT_SERVER, url=url, port=AGENT_SERVER_PORT)
                     )
+                    # Use /vscode/{port} pattern for better cookie-based auth handling
+                    vscode_port = runtime.get('vscode_port', VSCODE_PORT)
+                    parsed_url = urlparse(url)
                     vscode_url = (
-                        _build_service_url(url, 'vscode', runtime_id)
-                        + f'?tkn={session_api_key}&folder=%2Fworkspace%2Fproject'
+                        f"{parsed_url.scheme}://{parsed_url.netloc}/vscode/{vscode_port}"
+                        + f"?tkn={session_api_key}&folder=%2Fworkspace%2Fproject"
                     )
                     exposed_urls.append(
-                        ExposedUrl(name=VSCODE, url=vscode_url, port=VSCODE_PORT)
+                        ExposedUrl(name=VSCODE, url=vscode_url, port=vscode_port)
                     )
                     exposed_urls.append(
                         ExposedUrl(

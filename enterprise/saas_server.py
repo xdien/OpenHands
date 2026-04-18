@@ -76,6 +76,7 @@ from openhands.app_server.websocket_proxy.websocket_proxy_router import (
 # Import HTTP proxy handler for sandbox services (VSCode, web apps, etc.)
 from openhands.app_server.http_proxy.http_proxy_router import (
     http_proxy_to_sandbox,
+    http_vscode_proxy_to_sandbox,
     http_ws_proxy_to_sandbox,
 )  # noqa: E402
 
@@ -194,6 +195,44 @@ ws_planning_route = WebSocketRoute(
 base_app.routes.insert(0, ws_route)
 base_app.routes.insert(0, ws_planning_route)
 _logger.info(f"✅ WebSocket proxy routes registered: main + planning")
+
+# Add VSCode-specific proxy route BEFORE generic proxy
+# This route handles VSCode with special cookie-based auth
+# Path pattern: /vscode/{sandbox_port}/...
+_logger.info("🔌 Registering VSCode proxy route...")
+vscode_route = Route(
+    "/vscode/{sandbox_port}/{path:path}",
+    http_vscode_proxy_to_sandbox,
+)
+base_app.routes.insert(0, vscode_route)
+_logger.info(f"✅ VSCode proxy route registered: /vscode/{{sandbox_port}}/...")
+
+# Add VSCode proxy route for root path (without trailing path)
+vscode_root_route = Route(
+    "/vscode/{sandbox_port}",
+    http_vscode_proxy_to_sandbox,
+)
+base_app.routes.insert(0, vscode_root_route)
+_logger.info(f"✅ VSCode root proxy route registered: /vscode/{{sandbox_port}}")
+
+# Add WebSocket proxy route for /vscode/{sandbox_port}/{path:path}
+# This handles VSCode WebSocket connections
+# IMPORTANT: Must be registered BEFORE HTTP routes to take precedence
+_logger.info("🔌 Registering WebSocket proxy routes for /vscode/{sandbox_port}/{path:path}...")
+ws_vscode_route = WebSocketRoute(
+    "/vscode/{sandbox_port}/{path:path}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_vscode_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /vscode/{{sandbox_port}}/{{path:path}}")
+
+# Add WebSocket proxy route for /vscode/{sandbox_port}/ root path
+ws_vscode_root_route = WebSocketRoute(
+    "/vscode/{sandbox_port}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_vscode_root_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /vscode/{{sandbox_port}}/")
 
 # Add HTTP proxy routes BEFORE SPAStaticFiles mount
 # These routes handle HTTP requests to sandbox services (VSCode, web apps, etc.)

@@ -96,6 +96,7 @@ class DockerSandboxService(SandboxService):
     httpx_client: httpx.AsyncClient
     max_num_sandboxes: int
     proxy_url_pattern: str | None = None
+    vscode_proxy_url_pattern: str | None = None
     web_url: str | None = None
     permitted_cors_origins: list[str] = field(default_factory=list)
     extra_hosts: dict[str, str] = field(default_factory=dict)
@@ -162,7 +163,10 @@ class DockerSandboxService(SandboxService):
         internal_url = self.container_url_pattern.format(port=host_port)
 
         # Build external URL (proxy pattern if configured, else fallback to internal)
-        if self.proxy_url_pattern:
+        # For VSCode, use vscode_proxy_url_pattern if available
+        if name == VSCODE and self.vscode_proxy_url_pattern:
+            external_url = self.vscode_proxy_url_pattern.format(port=host_port)
+        elif self.proxy_url_pattern:
             external_url = self.proxy_url_pattern.format(port=host_port)
         else:
             external_url = internal_url
@@ -615,6 +619,16 @@ class DockerSandboxServiceInjector(SandboxServiceInjector):
             "If not set, falls back to container_url_pattern."
         ),
     )
+    vscode_proxy_url_pattern: str | None = Field(
+        default=None,
+        description=(
+            "URL pattern for VSCode external access (frontend). "
+            "Use {port} as placeholder. When set, VSCode URLs will use this pattern. "
+            "Example: https://domain.com/vscode/{port} for dedicated VSCode routing. "
+            "Configure via VSCODE_PROXY_URL_PATTERN environment variable. "
+            "If not set, falls back to proxy_url_pattern."
+        ),
+    )
     host_port: int = Field(
         default=3000,
         description=(
@@ -735,6 +749,7 @@ class DockerSandboxServiceInjector(SandboxServiceInjector):
                 httpx_client=httpx_client,
                 max_num_sandboxes=self.max_num_sandboxes,
                 proxy_url_pattern=self.proxy_url_pattern,
+                vscode_proxy_url_pattern=self.vscode_proxy_url_pattern,
                 web_url=web_url,
                 permitted_cors_origins=config.permitted_cors_origins,
                 extra_hosts=self.extra_hosts,
