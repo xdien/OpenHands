@@ -308,6 +308,16 @@ def config_from_env() -> AppServerConfig:
                 docker_sandbox_kwargs['vscode_proxy_url_pattern'] = os.environ[
                     'VSCODE_PROXY_URL_PATTERN'
                 ]
+            # Worker1-specific proxy URL pattern (overrides proxy_url_pattern for WORKER_1)
+            if os.getenv('WORKER1_PROXY_URL_PATTERN'):
+                docker_sandbox_kwargs['worker1_proxy_url_pattern'] = os.environ[
+                    'WORKER1_PROXY_URL_PATTERN'
+                ]
+            # Worker2-specific proxy URL pattern (overrides proxy_url_pattern for WORKER_2)
+            if os.getenv('WORKER2_PROXY_URL_PATTERN'):
+                docker_sandbox_kwargs['worker2_proxy_url_pattern'] = os.environ[
+                    'WORKER2_PROXY_URL_PATTERN'
+                ]
             # Allow configuring sandbox startup grace period
             # This is useful for slower machines or cloud environments where
             # the agent-server container takes longer to initialize

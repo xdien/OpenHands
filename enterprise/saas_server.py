@@ -81,6 +81,7 @@ from openhands.app_server.websocket_proxy.websocket_proxy_router import (
 from openhands.app_server.http_proxy.http_proxy_router import (
     http_proxy_to_sandbox,
     http_vscode_proxy_to_sandbox,
+    http_worker1_proxy_to_sandbox,
     http_ws_proxy_to_sandbox,
 )  # noqa: E402
 
@@ -237,6 +238,70 @@ ws_vscode_root_route = WebSocketRoute(
 base_app.routes.insert(0, ws_vscode_root_route)
 _logger.info(f"✅ WebSocket proxy routes registered: /vscode/{{sandbox_port}}/")
 
+# Add Worker1-specific proxy route (for multi-container sandboxes like WORKER_1, WORKER_2)
+_logger.info("🔌 Registering Worker1 proxy route...")
+worker1_route = Route(
+    "/worker1/{sandbox_port}/{path:path}",
+    http_worker1_proxy_to_sandbox,
+)
+base_app.routes.insert(0, worker1_route)
+_logger.info(f"✅ Worker1 proxy route registered: /worker1/{{sandbox_port}}/...")
+
+# Add Worker1 proxy route for root path (without trailing path)
+worker1_root_route = Route(
+    "/worker1/{sandbox_port}",
+    http_worker1_proxy_to_sandbox,
+)
+base_app.routes.insert(0, worker1_root_route)
+_logger.info(f"✅ Worker1 root proxy route registered: /worker1/{{sandbox_port}}")
+
+# Add WebSocket proxy route for /worker1/{sandbox_port}/{path:path}
+_logger.info("🔌 Registering WebSocket proxy routes for /worker1/{sandbox_port}/{path:path}...")
+ws_worker1_route = WebSocketRoute(
+    "/worker1/{sandbox_port}/{path:path}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_worker1_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /worker1/{{sandbox_port}}/{{path:path}}")
+
+# Add WebSocket proxy route for /worker1/{sandbox_port}/ root path
+ws_worker1_root_route = WebSocketRoute(
+    "/worker1/{sandbox_port}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_worker1_root_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /worker1/{{sandbox_port}}/")
+
+# Add Worker2-specific proxy route
+_logger.info("🔌 Registering Worker2 proxy route...")
+worker2_route = Route(
+    "/worker2/{sandbox_port}/{path:path}",
+    http_worker1_proxy_to_sandbox,
+)
+base_app.routes.insert(0, worker2_route)
+_logger.info(f"✅ Worker2 proxy route registered: /worker2/{{sandbox_port}}/...")
+
+worker2_root_route = Route(
+    "/worker2/{sandbox_port}",
+    http_worker1_proxy_to_sandbox,
+)
+base_app.routes.insert(0, worker2_root_route)
+_logger.info(f"✅ Worker2 root proxy route registered: /worker2/{{sandbox_port}}")
+
+ws_worker2_route = WebSocketRoute(
+    "/worker2/{sandbox_port}/{path:path}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_worker2_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /worker2/{{sandbox_port}}/{{path:path}}")
+
+ws_worker2_root_route = WebSocketRoute(
+    "/worker2/{sandbox_port}",
+    websocket_proxy_to_sandbox,
+)
+base_app.routes.insert(0, ws_worker2_root_route)
+_logger.info(f"✅ WebSocket proxy routes registered: /worker2/{{sandbox_port}}/")
+
 # Add HTTP proxy routes BEFORE SPAStaticFiles mount
 # These routes handle HTTP requests to sandbox services (VSCode, web apps, etc.)
 # Path pattern: /proxy/{sandbox_port}/...
@@ -278,7 +343,7 @@ base_app.routes.insert(0, ws_root_route)
 _logger.info(f"✅ WebSocket proxy routes registered: /ws/{{sandbox_port}}/")
 
 # Debug: List all routes
-for i, route in enumerate(base_app.routes[:5]):
+for i, route in enumerate(base_app.routes[:20]):
     _logger.info(f"Route {i}: {route.path if hasattr(route, 'path') else route}")
 
 base_app.mount("/", SPAStaticFiles(directory=directory, html=True), name="dist")

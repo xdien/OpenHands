@@ -25,6 +25,8 @@ from openhands.app_server.sandbox.docker_sandbox_service import (
 from openhands.app_server.sandbox.sandbox_models import (
     AGENT_SERVER,
     VSCODE,
+    WORKER_1,
+    WORKER_2,
     SandboxPage,
     SandboxStatus,
 )
@@ -1706,3 +1708,163 @@ class TestDockerSandboxServiceHostNetwork:
         # Verify - should be STARTING because container started within grace period
         assert result is not None
         assert result.status == SandboxStatus.STARTING
+
+    @patch(
+        'openhands.app_server.utils.docker_utils.is_running_in_docker',
+        return_value=False,
+    )
+    async def test_proxy_url_pattern_fallback_to_sandbox_proxy_pattern(
+        self, mock_is_docker, mock_sandbox_spec_service, mock_docker_client, mock_httpx_client
+    ):
+        """Test that when VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN,
+        WORKER2_PROXY_URL_PATTERN are not set, it falls back to SANDBOX_PROXY_URL_PATTERN.
+
+        This ensures backward compatibility - if only SANDBOX_PROXY_URL_PATTERN is set,
+        it should be used for all exposed URLs (VSCode, WORKER_1, WORKER_2).
+        """
+        # Setup: Create service with SANDBOX_PROXY_URL_PATTERN but WITHOUT
+        # VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN, WORKER2_PROXY_URL_PATTERN
+        service = DockerSandboxService(
+            sandbox_spec_service=mock_sandbox_spec_service,
+            container_name_prefix='oh-test-',
+            container_url_pattern='http://localhost:{port}',
+            mounts=[],
+            exposed_ports=[
+                ExposedPort(name=AGENT_SERVER, description='Agent server', container_port=8000),
+                ExposedPort(name=VSCODE, description='VSCode', container_port=8001),
+                ExposedPort(name=WORKER_1, description='Worker 1', container_port=8011),
+                ExposedPort(name=WORKER_2, description='Worker 2', container_port=8012),
+            ],
+            health_check_path='/health',
+            httpx_client=mock_httpx_client,
+            max_num_sandboxes=3,
+            docker_client=mock_docker_client,
+            # Only set SANDBOX_PROXY_URL_PATTERN - this should be used as fallback
+            proxy_url_pattern='https://ai.canthotouring.com/ws/{port}',
+            # VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN, WORKER2_PROXY_URL_PATTERN not set
+        )
+
+        # Create a mock running container with ports for all services
+        container = MagicMock()
+        container.name = 'oh-test-abc123'
+        container.status = 'running'
+        container.image.tags = ['test-image:latest']
+        container.attrs = {
+            'Created': '2024-01-15T10:30:00.000000000Z',
+            'Config': {
+                'Env': [
+                    'OH_SESSION_API_KEYS_0=session_key_123',
+                ],
+                'WorkingDir': '/workspace',
+            },
+            'NetworkSettings': {
+                'Ports': {
+                    '8000/tcp': [{'HostPort': '12345'}],
+                    '8001/tcp': [{'HostPort': '12346'}],
+                    '8011/tcp': [{'HostPort': '12347'}],
+                    '8012/tcp': [{'HostPort': '12348'}],
+                }
+            },
+        }
+
+        # Execute
+        result = await service._container_to_sandbox_info(container)
+
+        # Verify - all exposed URLs should use SANDBOX_PROXY_URL_PATTERN as fallback
+        assert result is not None
+        assert len(result.exposed_urls) == 4
+
+        agent_url = next(url for url in result.exposed_urls if url.name == AGENT_SERVER)
+        assert agent_url.url == 'https://ai.canthotouring.com/ws/12345'
+
+        vscode_url = next(url for url in result.exposed_urls if url.name == VSCODE)
+        assert vscode_url.url == 'https://ai.canthotouring.com/ws/12346/?tkn=session_key_123&folder=/workspace'
+
+        worker1_url = next(url for url in result.exposed_urls if url.name == WORKER_1)
+        assert worker1_url.url == 'https://ai.canthotouring.com/ws/12347'
+
+        worker2_url = next(url for url in result.exposed_urls if url.name == WORKER_2)
+        assert worker2_url.url == 'https://ai.canthotouring.com/ws/12348'
+
+    @patch(
+        'openhands.app_server.utils.docker_utils.is_running_in_docker',
+        return_value=False,
+    )
+    async def test_proxy_url_pattern_specific_overrides_fallback(
+        self, mock_is_docker, mock_sandbox_spec_service, mock_docker_client, mock_httpx_client
+    ):
+        """Test that VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN,
+        WORKER2_PROXY_URL_PATTERN override SANDBOX_PROXY_URL_PATTERN when set.
+
+        When specific proxy patterns are set, they should be used instead of
+        the generic SANDBOX_PROXY_URL_PATTERN.
+        """
+        # Setup: Create service with all proxy URL patterns set
+        service = DockerSandboxService(
+            sandbox_spec_service=mock_sandbox_spec_service,
+            container_name_prefix='oh-test-',
+            container_url_pattern='http://localhost:{port}',
+            mounts=[],
+            exposed_ports=[
+                ExposedPort(name=AGENT_SERVER, description='Agent server', container_port=8000),
+                ExposedPort(name=VSCODE, description='VSCode', container_port=8001),
+                ExposedPort(name=WORKER_1, description='Worker 1', container_port=8011),
+                ExposedPort(name=WORKER_2, description='Worker 2', container_port=8012),
+            ],
+            health_check_path='/health',
+            httpx_client=mock_httpx_client,
+            max_num_sandboxes=3,
+            docker_client=mock_docker_client,
+            # Generic fallback
+            proxy_url_pattern='https://ai.canthotouring.com/ws/{port}',
+            # Specific overrides
+            vscode_proxy_url_pattern='https://ai.canthotouring.com/vscode/{port}',
+            worker1_proxy_url_pattern='https://ai.canthotouring.com/worker1/{port}',
+            worker2_proxy_url_pattern='https://ai.canthotouring.com/worker2/{port}',
+        )
+
+        # Create a mock running container with ports for all services
+        container = MagicMock()
+        container.name = 'oh-test-abc123'
+        container.status = 'running'
+        container.image.tags = ['test-image:latest']
+        container.attrs = {
+            'Created': '2024-01-15T10:30:00.000000000Z',
+            'Config': {
+                'Env': [
+                    'OH_SESSION_API_KEYS_0=session_key_123',
+                ],
+                'WorkingDir': '/workspace',
+            },
+            'NetworkSettings': {
+                'Ports': {
+                    '8000/tcp': [{'HostPort': '12345'}],
+                    '8001/tcp': [{'HostPort': '12346'}],
+                    '8011/tcp': [{'HostPort': '12347'}],
+                    '8012/tcp': [{'HostPort': '12348'}],
+                }
+            },
+        }
+
+        # Execute
+        result = await service._container_to_sandbox_info(container)
+
+        # Verify - each service should use its specific proxy pattern
+        assert result is not None
+        assert len(result.exposed_urls) == 4
+
+        agent_url = next(url for url in result.exposed_urls if url.name == AGENT_SERVER)
+        # AGENT_SERVER uses fallback proxy_url_pattern
+        assert agent_url.url == 'https://ai.canthotouring.com/ws/12345'
+
+        vscode_url = next(url for url in result.exposed_urls if url.name == VSCODE)
+        # VSCode uses vscode_proxy_url_pattern
+        assert vscode_url.url == 'https://ai.canthotouring.com/vscode/12346/?tkn=session_key_123&folder=/workspace'
+
+        worker1_url = next(url for url in result.exposed_urls if url.name == WORKER_1)
+        # WORKER_1 uses worker1_proxy_url_pattern
+        assert worker1_url.url == 'https://ai.canthotouring.com/worker1/12347'
+
+        worker2_url = next(url for url in result.exposed_urls if url.name == WORKER_2)
+        # WORKER_2 uses worker2_proxy_url_pattern
+        assert worker2_url.url == 'https://ai.canthotouring.com/worker2/12348'

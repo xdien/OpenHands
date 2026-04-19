@@ -97,6 +97,8 @@ class DockerSandboxService(SandboxService):
     max_num_sandboxes: int
     proxy_url_pattern: str | None = None
     vscode_proxy_url_pattern: str | None = None
+    worker1_proxy_url_pattern: str | None = None
+    worker2_proxy_url_pattern: str | None = None
     web_url: str | None = None
     permitted_cors_origins: list[str] = field(default_factory=list)
     extra_hosts: dict[str, str] = field(default_factory=dict)
@@ -164,8 +166,14 @@ class DockerSandboxService(SandboxService):
 
         # Build external URL (proxy pattern if configured, else fallback to internal)
         # For VSCode, use vscode_proxy_url_pattern if available
+        # For WORKER_1, use worker1_proxy_url_pattern if available
+        # For WORKER_2, use worker2_proxy_url_pattern if available
         if name == VSCODE and self.vscode_proxy_url_pattern:
             external_url = self.vscode_proxy_url_pattern.format(port=host_port)
+        elif name == WORKER_1 and self.worker1_proxy_url_pattern:
+            external_url = self.worker1_proxy_url_pattern.format(port=host_port)
+        elif name == WORKER_2 and self.worker2_proxy_url_pattern:
+            external_url = self.worker2_proxy_url_pattern.format(port=host_port)
         elif self.proxy_url_pattern:
             external_url = self.proxy_url_pattern.format(port=host_port)
         else:
@@ -629,6 +637,26 @@ class DockerSandboxServiceInjector(SandboxServiceInjector):
             "If not set, falls back to proxy_url_pattern."
         ),
     )
+    worker1_proxy_url_pattern: str | None = Field(
+        default=None,
+        description=(
+            "URL pattern for WORKER_1 external access (frontend). "
+            "Use {port} as placeholder. When set, WORKER_1 URLs will use this pattern. "
+            "Example: https://domain.com/worker1/{port} for dedicated worker routing. "
+            "Configure via WORKER1_PROXY_URL_PATTERN environment variable. "
+            "If not set, falls back to proxy_url_pattern."
+        ),
+    )
+    worker2_proxy_url_pattern: str | None = Field(
+        default=None,
+        description=(
+            "URL pattern for WORKER_2 external access (frontend). "
+            "Use {port} as placeholder. When set, WORKER_2 URLs will use this pattern. "
+            "Example: https://domain.com/worker2/{port} for dedicated worker routing. "
+            "Configure via WORKER2_PROXY_URL_PATTERN environment variable. "
+            "If not set, falls back to proxy_url_pattern."
+        ),
+    )
     host_port: int = Field(
         default=3000,
         description=(
@@ -750,6 +778,8 @@ class DockerSandboxServiceInjector(SandboxServiceInjector):
                 max_num_sandboxes=self.max_num_sandboxes,
                 proxy_url_pattern=self.proxy_url_pattern,
                 vscode_proxy_url_pattern=self.vscode_proxy_url_pattern,
+                worker1_proxy_url_pattern=self.worker1_proxy_url_pattern,
+                worker2_proxy_url_pattern=self.worker2_proxy_url_pattern,
                 web_url=web_url,
                 permitted_cors_origins=config.permitted_cors_origins,
                 extra_hosts=self.extra_hosts,
