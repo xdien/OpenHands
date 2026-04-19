@@ -1,5 +1,4 @@
-"""
-Store class for managing organizational settings.
+"""Store class for managing organizational settings.
 """
 
 import functools
@@ -1547,8 +1546,7 @@ class LiteLlmManager:
         client: httpx.AsyncClient,
         team_id: str,
     ) -> dict:
-        """
-        Get financial data for all members in a team.
+        """Get financial data for all members in a team.
 
         Fetches team info from LiteLLM and extracts spending/budget data for each member.
 
