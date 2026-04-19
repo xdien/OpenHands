@@ -6,6 +6,8 @@ to sandbox services (VSCode, web apps, etc.) running on dynamic ports.
 URL Patterns:
 - /proxy/{port}/... - Generic HTTP proxy for any sandbox service
 - /vscode/{port}/... - VSCode-specific proxy with cookie-based auth handling
+- /worker1/{port}/... - Worker1 proxy (for multi-container sandboxes)
+- /worker2/{port}/... - Worker2 proxy (for multi-container sandboxes)
 - /ws/{port}/... - WebSocket proxy
 
 The proxy maps paths to http://localhost:{port}/...
@@ -469,6 +471,179 @@ async def http_vscode_proxy_to_sandbox(request: Request) -> Response:
     )
     return Response(
         status_code=503, content=f'VSCode service not available on port {sandbox_port}'
+    )
+
+
+async def http_worker1_proxy_to_sandbox(request: Request) -> Response:
+    """HTTP proxy handler for Worker1-specific paths.
+
+    This function handles HTTP requests to /worker1/{sandbox_port}/... paths
+    and forwards them to Worker1 containers in multi-container sandboxes.
+    Used for additional containers like WORKER_1, WORKER_2 in the sandbox.
+
+    Path format: /worker1/{sandbox_port}/...
+
+    Args:
+        request: The incoming HTTP request (Starlette Request)
+
+    Returns:
+        The proxied response from the Worker1 container
+    """
+    path = request.url.path
+
+    parts = path.split('/')
+    if len(parts) < 3:
+        return Response(
+            status_code=400, content='Invalid Worker1 proxy path format. Use /worker1/{port}/...'
+        )
+
+    try:
+        sandbox_port = int(parts[2])
+        if not (30000 <= sandbox_port <= 65535):
+            raise ValueError(f'Port {sandbox_port} out of range')
+    except (ValueError, TypeError) as e:
+        logger.error(f'Invalid port in Worker1 proxy path: {path} - {e}')
+        return Response(
+            status_code=400,
+            content=f'Invalid port: {parts[2] if len(parts) > 2 else "missing"}',
+        )
+
+    remaining_path = '/'.join(parts[3:]) if len(parts) > 3 else ''
+    if remaining_path:
+        remaining_path = '/' + remaining_path
+
+    query_string = str(request.url.query) if request.url.query else ''
+
+    token = None
+    if query_string:
+        parsed = parse_qs(query_string, keep_blank_values=True)
+        if 'tkn' in parsed:
+            token = parsed['tkn'][0]
+            filtered_params = {k: v for k, v in parsed.items() if k != 'tkn'}
+            if filtered_params:
+                query_string = urlencode(filtered_params, doseq=True)
+            else:
+                query_string = ''
+
+    logger.info(f'Worker1 PROXY: {path}')
+
+    sandbox_base_url = await get_sandbox_url_for_port(sandbox_port)
+
+    hosts_to_try: list[str] = []
+    if sandbox_base_url:
+        try:
+            if '://' in sandbox_base_url:
+                hosts_to_try.append(sandbox_base_url.split('://')[1].split('/')[0])
+        except Exception:
+            pass
+
+    hosts_to_try.extend(
+        [
+            f'localhost:{sandbox_port}',
+            f'127.0.0.1:{sandbox_port}',
+        ]
+    )
+
+    if os.path.exists('/.dockerenv'):
+        hosts_to_try.append(f'host.docker.internal:{sandbox_port}')
+
+    hosts_to_try.append(f'172.17.0.1:{sandbox_port}')
+
+    hosts_to_try = list(dict.fromkeys(hosts_to_try))
+
+    for host in hosts_to_try:
+        target_url = f'http://{host}{remaining_path}'
+        if query_string:
+            target_url += f'?{query_string}'
+
+        logger.info(f'Trying Worker1 proxy to: {target_url.split("?")[0]}')
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                headers = dict(request.headers)
+                headers.pop('host', None)
+                headers.pop('Host', None)
+
+                headers['X-Forwarded-Host'] = (
+                    f'{request.url.hostname}:{request.url.port}'
+                )
+                headers['X-Forwarded-Proto'] = request.url.scheme
+                headers['X-Forwarded-Prefix'] = f'/worker1/{sandbox_port}'
+                headers['X-Real-IP'] = (
+                    request.client.host if request.client else 'unknown'
+                )
+
+                if token:
+                    headers['X-Session-API-Key'] = token
+
+                body = await request.body()
+
+                response = await client.request(
+                    method=request.method,
+                    url=target_url,
+                    headers=headers,
+                    content=body,
+                )
+
+                logger.info(
+                    f'Worker1 proxy success: {host}, status={response.status_code}'
+                )
+
+                response_headers = dict(response.headers)
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response_headers.get(
+                        'location', response_headers.get('Location')
+                    )
+                    if location:
+                        if location.startswith('/') and not location.startswith(
+                            f'/worker1/{sandbox_port}'
+                        ):
+                            location = f'/worker1/{sandbox_port}{location}'
+                            logger.info(f'Worker1: Added /worker1/{sandbox_port} prefix to redirect')
+
+                        if location.startswith('/'):
+                            response_headers['location'] = location
+                            response_headers['Location'] = location
+
+                xfo_headers = ['x-frame-options', 'X-Frame-Options']
+                for xfo in xfo_headers:
+                    if xfo in response_headers:
+                        del response_headers[xfo]
+
+                csp_headers = ['content-security-policy', 'Content-Security-Policy']
+                for csp in csp_headers:
+                    if csp in response_headers:
+                        csp_value = response_headers[csp]
+                        if 'frame-ancestors' in csp_value.lower():
+                            directives = [d.strip() for d in csp_value.split(';')]
+                            filtered = [
+                                d
+                                for d in directives
+                                if not d.lower().startswith('frame-ancestors')
+                            ]
+                            if filtered:
+                                response_headers[csp] = '; '.join(filtered)
+                            else:
+                                del response_headers[csp]
+
+                return Response(
+                    content=response.content,
+                    status_code=response.status_code,
+                    headers=response_headers,
+                )
+
+        except httpx.ConnectError as e:
+            logger.warning(f'Worker1: Failed to connect to {host}: {e}')
+            continue
+        except Exception as e:
+            logger.warning(f'Worker1: Error proxying to {host}: {e}')
+            continue
+
+    logger.error(
+        f'Worker1: Could not proxy to sandbox at port {sandbox_port} after trying: {hosts_to_try}'
+    )
+    return Response(
+        status_code=503, content=f'Worker1 service not available on port {sandbox_port}'
     )
 
 
