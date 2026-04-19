@@ -55,7 +55,15 @@ def _post_merge_llm_fixups(settings: Settings) -> None:
     if llm.base_url == '':
         llm.base_url = None
     elif llm.base_url is None and llm.model:
-        if is_openhands_model(llm.model):
+        # Handle bailian (Alibaba Cloud) models - litellm doesn't know about them
+        _BAILIAN_MODEL_PATTERNS = ["qwen", "glm", "kimi", "minimax"]
+        is_bailian = (
+            llm.model.startswith("bailian/") or
+            any(llm.model.lower().startswith(p.lower()) for p in _BAILIAN_MODEL_PATTERNS)
+        )
+        if is_bailian:
+            llm.base_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
+        elif is_openhands_model(llm.model):
             llm.base_url = LITE_LLM_API_URL
         else:
             try:
