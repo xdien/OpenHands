@@ -1740,7 +1740,7 @@ class TestDockerSandboxServiceHostNetwork:
             max_num_sandboxes=3,
             docker_client=mock_docker_client,
             # Only set SANDBOX_PROXY_URL_PATTERN - this should be used as fallback
-            proxy_url_pattern='https://ai.canthotouring.com/ws/{port}',
+            proxy_url_pattern='https://ai.example.com/ws/{port}',
             # VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN, WORKER2_PROXY_URL_PATTERN not set
         )
 
@@ -1775,16 +1775,16 @@ class TestDockerSandboxServiceHostNetwork:
         assert len(result.exposed_urls) == 4
 
         agent_url = next(url for url in result.exposed_urls if url.name == AGENT_SERVER)
-        assert agent_url.url == 'https://ai.canthotouring.com/ws/12345'
+        assert agent_url.url == 'https://ai.example.com/ws/12345'
 
         vscode_url = next(url for url in result.exposed_urls if url.name == VSCODE)
-        assert vscode_url.url == 'https://ai.canthotouring.com/ws/12346/?tkn=session_key_123&folder=/workspace'
+        assert vscode_url.url == 'https://ai.example.com/ws/12346/?tkn=session_key_123&folder=/workspace'
 
         worker1_url = next(url for url in result.exposed_urls if url.name == WORKER_1)
-        assert worker1_url.url == 'https://ai.canthotouring.com/ws/12347'
+        assert worker1_url.url == 'https://ai.example.com/ws/12347'
 
         worker2_url = next(url for url in result.exposed_urls if url.name == WORKER_2)
-        assert worker2_url.url == 'https://ai.canthotouring.com/ws/12348'
+        assert worker2_url.url == 'https://ai.example.com/ws/12348'
 
     @patch(
         'openhands.app_server.utils.docker_utils.is_running_in_docker',
@@ -1816,11 +1816,11 @@ class TestDockerSandboxServiceHostNetwork:
             max_num_sandboxes=3,
             docker_client=mock_docker_client,
             # Generic fallback
-            proxy_url_pattern='https://ai.canthotouring.com/ws/{port}',
+            proxy_url_pattern='https://ai.example.com/ws/{port}',
             # Specific overrides
-            vscode_proxy_url_pattern='https://ai.canthotouring.com/vscode/{port}',
-            worker1_proxy_url_pattern='https://ai.canthotouring.com/worker1/{port}',
-            worker2_proxy_url_pattern='https://ai.canthotouring.com/worker2/{port}',
+            vscode_proxy_url_pattern='https://ai.example.com/vscode/{port}',
+            worker1_proxy_url_pattern='https://ai.example.com/worker1/{port}',
+            worker2_proxy_url_pattern='https://ai.example.com/worker2/{port}',
         )
 
         # Create a mock running container with ports for all services
@@ -1855,16 +1855,16 @@ class TestDockerSandboxServiceHostNetwork:
 
         agent_url = next(url for url in result.exposed_urls if url.name == AGENT_SERVER)
         # AGENT_SERVER uses fallback proxy_url_pattern
-        assert agent_url.url == 'https://ai.canthotouring.com/ws/12345'
+        assert agent_url.url == 'https://ai.example.com/ws/12345'
 
         vscode_url = next(url for url in result.exposed_urls if url.name == VSCODE)
         # VSCode uses vscode_proxy_url_pattern
-        assert vscode_url.url == 'https://ai.canthotouring.com/vscode/12346/?tkn=session_key_123&folder=/workspace'
+        assert vscode_url.url == 'https://ai.example.com/vscode/12346/?tkn=session_key_123&folder=/workspace'
 
         worker1_url = next(url for url in result.exposed_urls if url.name == WORKER_1)
         # WORKER_1 uses worker1_proxy_url_pattern
-        assert worker1_url.url == 'https://ai.canthotouring.com/worker1/12347'
+        assert worker1_url.url == 'https://ai.example.com/worker1/12347'
 
         worker2_url = next(url for url in result.exposed_urls if url.name == WORKER_2)
         # WORKER_2 uses worker2_proxy_url_pattern
-        assert worker2_url.url == 'https://ai.canthotouring.com/worker2/12348'
+        assert worker2_url.url == 'https://ai.example.com/worker2/12348'
