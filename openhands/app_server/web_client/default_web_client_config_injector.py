@@ -15,12 +15,12 @@ from openhands.integrations.service_types import ProviderType
 
 def _get_recaptcha_site_key() -> str | None:
     """Get reCAPTCHA site key from environment variable."""
-    key = os.getenv('RECAPTCHA_SITE_KEY', '').strip()
+    key = os.getenv("RECAPTCHA_SITE_KEY", "").strip()
     return key if key else None
 
 
 # OSS default PostHog key - used when no environment variable is configured
-_OSS_POSTHOG_KEY = 'phc_3ESMmY9SgqEAGBB6sMGK5ayYHkeUuknH2vP6FmWH9RA'
+_OSS_POSTHOG_KEY = "phc_3ESMmY9SgqEAGBB6sMGK5ayYHkeUuknH2vP6FmWH9RA"
 
 
 def _get_posthog_client_key() -> str:
@@ -29,7 +29,7 @@ def _get_posthog_client_key() -> str:
     Reads POSTHOG_CLIENT_KEY from environment. If not set or empty,
     returns the OSS default key for backwards compatibility.
     """
-    key = os.getenv('POSTHOG_CLIENT_KEY', '').strip()
+    key = os.getenv("POSTHOG_CLIENT_KEY", "").strip()
     return key if key else _OSS_POSTHOG_KEY
 
 
@@ -38,7 +38,7 @@ def _get_auth_url() -> str | None:
 
     Reads AUTH_URL from environment. If not set or empty, returns None.
     """
-    url = os.getenv('AUTH_URL', '').strip()
+    url = os.getenv("AUTH_URL", "").strip()
     return url if url else None
 
 
@@ -49,7 +49,7 @@ def _get_maintenance_start_time() -> datetime | None:
     timestamp, returns the parsed datetime. If empty, unset, or invalid,
     returns None (graceful fallback).
     """
-    value = os.getenv('MAINTENANCE_START_TIME', '').strip()
+    value = os.getenv("MAINTENANCE_START_TIME", "").strip()
     if not value:
         return None
     try:
@@ -71,16 +71,16 @@ def _get_providers_configured() -> list[ProviderType]:
     """
     providers: list[ProviderType] = []
 
-    if os.getenv('GITHUB_APP_CLIENT_ID', '').strip():
+    if os.getenv("GITHUB_APP_CLIENT_ID", "").strip():
         providers.append(ProviderType.GITHUB)
 
     if _is_gitlab_enabled():
         providers.append(ProviderType.GITLAB)
 
-    if os.getenv('BITBUCKET_APP_CLIENT_ID', '').strip():
+    if os.getenv("BITBUCKET_APP_CLIENT_ID", "").strip():
         providers.append(ProviderType.BITBUCKET)
 
-    if os.getenv('ENABLE_ENTERPRISE_SSO', '').strip():
+    if os.getenv("ENABLE_ENTERPRISE_SSO", "").strip():
         providers.append(ProviderType.ENTERPRISE_SSO)
 
     return providers
@@ -92,7 +92,7 @@ def _get_github_app_slug() -> str | None:
     Reads GITHUB_APP_SLUG from environment. If set, returns the value.
     If empty or unset, returns None.
     """
-    slug = os.getenv('GITHUB_APP_SLUG', '').strip()
+    slug = os.getenv("GITHUB_APP_SLUG", "").strip()
     return slug if slug else None
 
 
@@ -115,14 +115,14 @@ def _get_feature_flags() -> WebClientFeatureFlags:
     exactly 'true', otherwise False.
     """
     return WebClientFeatureFlags(
-        enable_billing=os.getenv('ENABLE_BILLING', 'false') == 'true',
-        hide_llm_settings=os.getenv('HIDE_LLM_SETTINGS', 'false') == 'true',
-        enable_jira=os.getenv('ENABLE_JIRA', 'false') == 'true',
-        enable_jira_dc=os.getenv('ENABLE_JIRA_DC', 'false') == 'true',
-        enable_linear=os.getenv('ENABLE_LINEAR', 'false') == 'true',
-        hide_users_page=os.getenv('HIDE_USERS_PAGE', 'false') == 'true',
-        hide_billing_page=os.getenv('HIDE_BILLING_PAGE', 'false') == 'true',
-        hide_integrations_page=os.getenv('HIDE_INTEGRATIONS_PAGE', 'false') == 'true',
+        enable_billing=os.getenv("ENABLE_BILLING", "false") == "true",
+        hide_llm_settings=os.getenv("HIDE_LLM_SETTINGS", "false") == "true",
+        enable_jira=os.getenv("ENABLE_JIRA", "false") == "true",
+        enable_jira_dc=os.getenv("ENABLE_JIRA_DC", "false") == "true",
+        enable_linear=os.getenv("ENABLE_LINEAR", "false") == "true",
+        hide_users_page=os.getenv("HIDE_USERS_PAGE", "false") == "true",
+        hide_billing_page=os.getenv("HIDE_BILLING_PAGE", "false") == "true",
+        hide_integrations_page=os.getenv("HIDE_INTEGRATIONS_PAGE", "false") == "true",
     )
 
 
@@ -140,11 +140,11 @@ class DefaultWebClientConfigInjector(WebClientConfigInjector):
     faulty_models: list[str] = Field(default_factory=list)
     error_message: str | None = None
     updated_at: datetime = Field(
-        default=datetime.fromisoformat('2026-01-01T00:00:00Z'),
+        default=datetime.fromisoformat("2026-01-01T00:00:00Z"),
         description=(
-            'The timestamp when error messages and faulty models were last updated. '
-            'The frontend uses this value to determine whether error messages are '
-            'new and should be displayed. (Default to start of 2026)'
+            "The timestamp when error messages and faulty models were last updated. "
+            "The frontend uses this value to determine whether error messages are "
+            "new and should be displayed. (Default to start of 2026)"
         ),
     )
     github_app_slug: str | None = Field(default_factory=_get_github_app_slug)
@@ -155,8 +155,22 @@ class DefaultWebClientConfigInjector(WebClientConfigInjector):
         from openhands.app_server.config import get_global_config
 
         config = get_global_config()
+
+        # Check for OH_APP_MODE environment variable to override app_mode
+        # This allows enterprise deployments to set app_mode without modifying config class
+        app_mode = config.app_mode
+        oh_app_mode = os.getenv("OH_APP_MODE", "").strip().lower()
+        if oh_app_mode == "saas":
+            from openhands.server.types import AppMode
+
+            app_mode = AppMode.SAAS
+        elif oh_app_mode == "oss":
+            from openhands.server.types import AppMode
+
+            app_mode = AppMode.OPENHANDS
+
         result = WebClientConfig(
-            app_mode=config.app_mode,
+            app_mode=app_mode,
             posthog_client_key=self.posthog_client_key,
             feature_flags=self.feature_flags,
             providers_configured=self.providers_configured,
