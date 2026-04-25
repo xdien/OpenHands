@@ -56,11 +56,27 @@ def _post_merge_llm_fixups(settings: Settings) -> None:
     personal-save and enterprise org-defaults paths stay in lockstep.
     """
     llm = settings.agent_settings.llm
-    llm.base_url = resolve_llm_base_url(
-        model=llm.model,
-        base_url=llm.base_url,
-        managed_proxy_url=LITE_LLM_API_URL,
-    )
+    if llm.base_url == '':
+        llm.base_url = None
+    elif llm.base_url is None and llm.model:
+        _BAILIAN_MODEL_PATTERNS = ["qwen", "glm", "kimi", "minimax"]
+        is_bailian = (
+            llm.model.startswith("bailian/") or
+            any(llm.model.lower().startswith(p.lower()) for p in _BAILIAN_MODEL_PATTERNS)
+        )
+        if is_bailian:
+            llm.base_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
+        elif is_openhands_model(llm.model):
+            llm.base_url = LITE_LLM_API_URL
+        else:
+            try:
+                api_base = get_provider_api_base(llm.model)
+                if api_base:
+                    llm.base_url = api_base
+            except Exception as e:
+                logger.error(
+                    f'Failed to get api_base from litellm for model {llm.model}: {e}'
+                )
 
 
 # NOTE: We use response_model=None for endpoints that return JSONResponse directly.

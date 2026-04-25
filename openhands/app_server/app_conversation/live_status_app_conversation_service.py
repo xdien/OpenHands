@@ -920,8 +920,21 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             provider_base_url=self.openhands_provider_base_url,
         )
 
-        if model and model.startswith("bailian/"):
-            model = f"openai/{model[len('bailian/') :]}"
+        # Bailian (Alibaba) model detection - check for prefix or known model patterns
+        _BAILIAN_MODEL_PATTERNS = [
+            "qwen", "glm", "kimi", "minimax",
+        ]
+        is_bailian_model = (
+            model and (
+                model.startswith("bailian/") or
+                any(model.lower().startswith(pattern.lower()) for pattern in _BAILIAN_MODEL_PATTERNS)
+            )
+        )
+        if is_bailian_model:
+            if model and not model.startswith("bailian/"):
+                model = f"openai/{model}"
+            else:
+                model = f"openai/{model[len('bailian/') :]}"
             # Cho phép người dùng ghi đè Base URL từ giao diện, nếu rỗng thì mới dùng mặc định
             user_base_url = user.agent_settings.llm.base_url
             if user_base_url and user_base_url.strip():
