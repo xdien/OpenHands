@@ -1,5 +1,4 @@
-"""
-SQLAlchemy model for Organization.
+"""SQLAlchemy model for Organization.
 """
 
 from typing import TYPE_CHECKING, Any
