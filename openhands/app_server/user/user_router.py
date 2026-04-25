@@ -48,5 +48,5 @@ async def get_current_user_git_info(
     """Get the current authenticated user's metadata from the git provider."""
     user = await user_context.get_user_git_info()
     if user is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail='Not authenticated')
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail='Git provider not linked')
     return user

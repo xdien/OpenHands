@@ -12,6 +12,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import SecretStr
 from server.auth.constants import (
+    ENTERPRISE_SSO_SKIP_TOS,
     KEYCLOAK_CLIENT_ID,
     KEYCLOAK_REALM_NAME,
     KEYCLOAK_SERVER_URL_EXT,
@@ -21,7 +22,7 @@ from server.auth.constants import (
 from server.auth.gitlab_sync import schedule_gitlab_repo_sync
 from server.auth.recaptcha_service import recaptcha_service
 from server.auth.saas_user_auth import SaasUserAuth
-from server.auth.token_manager import TokenManager
+from server.auth.token_manager import KeycloakUserInfo, TokenManager
 from server.auth.user.user_authorizer import (
     UserAuthorizer,
     depends_user_authorizer,
@@ -623,8 +624,9 @@ async def enterprise_sso_callback(
             detail='Invalid user info from Enterprise SSO',
         )
 
-    # Authorize user - use user_info_dict directly (authorizer accepts dict-like)
-    authorization = await user_authorizer.authorize_user(user_info_dict)  # type: ignore
+    # Authorize user - convert dict to KeycloakUserInfo
+    user_info = KeycloakUserInfo(**user_info_dict)
+    authorization = await user_authorizer.authorize_user(user_info)
 
     if not authorization.success:
         if authorization.error_detail == 'duplicate_email':
@@ -678,7 +680,20 @@ async def enterprise_sso_callback(
         user_id=user_id, offline_token=refresh_token
     )
 
-    return RedirectResponse(redirect_url if redirect_url else web_url, status_code=302)
+    # Set the authentication cookie
+    response = RedirectResponse(
+        redirect_url if redirect_url else web_url, status_code=302
+    )
+    set_response_cookie(
+        request=request,
+        response=response,
+        keycloak_access_token=access_token,
+        keycloak_refresh_token=refresh_token,
+        secure=True if web_url.startswith('https') else False,
+        accepted_tos=ENTERPRISE_SSO_SKIP_TOS,  # Use config to determine if TOS should be skipped
+    )
+
+    return response
 
 
 @api_router.post('/authenticate')

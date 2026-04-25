@@ -57,9 +57,15 @@ class OrgMember(Base):
             raise TypeError(f'Unexpected keyword arguments: {list(kwargs.keys())}')
 
     @property
-    def llm_api_key(self) -> SecretStr:
-        decrypted = decrypt_value(self._llm_api_key)
-        return SecretStr(decrypted)
+    def llm_api_key(self) -> SecretStr | None:
+        if not self._llm_api_key:
+            return None
+        try:
+            decrypted = decrypt_value(self._llm_api_key)
+            return SecretStr(decrypted)
+        except ValueError:
+            # Encryption key not found, return None
+            return None
 
     @llm_api_key.setter
     def llm_api_key(self, value: str | SecretStr):
@@ -68,10 +74,14 @@ class OrgMember(Base):
 
     @property
     def llm_api_key_for_byor(self) -> SecretStr | None:
-        if self._llm_api_key_for_byor:
+        if not self._llm_api_key_for_byor:
+            return None
+        try:
             decrypted = decrypt_value(self._llm_api_key_for_byor)
             return SecretStr(decrypted)
-        return None
+        except ValueError:
+            # Encryption key not found, return None
+            return None
 
     @llm_api_key_for_byor.setter
     def llm_api_key_for_byor(self, value: str | SecretStr | None):
