@@ -24,7 +24,7 @@ from storage.redis import (
     get_redis_authed_url,
 )
 
-from openhands.core.logger import openhands_logger as logger
+from openhands.app_server.utils.logger import openhands_logger as logger
 
 
 def setup_rate_limit_handler(app: Starlette):
