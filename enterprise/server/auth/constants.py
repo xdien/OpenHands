@@ -14,6 +14,7 @@ KEYCLOAK_SERVER_URL_EXT = os.getenv(
     'KEYCLOAK_SERVER_URL_EXT', f'https://{os.getenv("AUTH_WEB_HOST", "")}'
 ).rstrip('/')
 KEYCLOAK_ADMIN_PASSWORD = os.getenv('KEYCLOAK_ADMIN_PASSWORD', '')
+KEYCLOAK_ENABLE = os.getenv('KEYCLOAK_ENABLE', 'false').lower() in ('1', 'true')
 GITLAB_APP_CLIENT_ID = os.getenv('GITLAB_APP_CLIENT_ID', '').strip()
 GITLAB_APP_CLIENT_SECRET = os.getenv('GITLAB_APP_CLIENT_SECRET', '').strip()
 GITLAB_TOKEN_URL = f'https://{GITLAB_HOST}/oauth/token'
@@ -32,6 +33,9 @@ AZURE_DEVOPS_TOKEN_URL = (
     else ''
 )
 ENABLE_ENTERPRISE_SSO = os.getenv('ENABLE_ENTERPRISE_SSO', '').strip()
+ENTERPRISE_SSO_AUTH_URL = os.getenv('ENTERPRISE_SSO_AUTH_URL', '').rstrip('/')
+ENTERPRISE_SSO_CLIENT_ID = os.getenv('ENTERPRISE_SSO_CLIENT_ID', '').strip()
+ENTERPRISE_SSO_CLIENT_SECRET = os.getenv('ENTERPRISE_SSO_CLIENT_SECRET', '').strip()
 ENABLE_JIRA = os.environ.get('ENABLE_JIRA', 'false') == 'true'
 ENABLE_JIRA_DC = os.environ.get('ENABLE_JIRA_DC', 'false') == 'true'
 ENABLE_LINEAR = os.environ.get('ENABLE_LINEAR', 'false') == 'true'

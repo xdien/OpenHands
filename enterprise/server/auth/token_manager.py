@@ -45,7 +45,7 @@ from server.auth.email_validation import (
     get_base_email_regex_pattern,
     matches_base_email,
 )
-from server.auth.keycloak_manager import get_keycloak_admin, get_keycloak_openid
+from server.auth.keycloak_manager import get_keycloak_admin, get_keycloak_openid, KeycloakDisabledError
 from server.logger import logger
 from sqlalchemy import String as SQLString
 from sqlalchemy import select, type_coerce

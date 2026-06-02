@@ -92,11 +92,21 @@ class UserAuthorizationStore:
         Returns:
             UserAuthorizationType.WHITELIST if a whitelist rule matches,
             UserAuthorizationType.BLACKLIST if a blacklist rule matches (and no whitelist),
-            None if no rules match
+            None if no rules match or if the database is unavailable
         """
-        authorizations = await UserAuthorizationStore.get_matching_authorizations(
-            email, provider_type, session
-        )
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            authorizations = await UserAuthorizationStore.get_matching_authorizations(
+                email, provider_type, session
+            )
+        except Exception:
+            logger.warning(
+                'Database is not available when checking user authorization - failing open',
+                exc_info=True,
+            )
+            return None
 
         has_whitelist = any(
             auth.type == UserAuthorizationType.WHITELIST.value

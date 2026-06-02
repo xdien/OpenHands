@@ -443,7 +443,7 @@ class OrgDefaultsSettingsResponse(BaseModel):
         """Rewrite ``agent_settings.llm`` in-place for UI consumption.
 
         * ``litellm_proxy/X`` → ``openhands/X`` so the basic-view provider
-          dropdown matches (the SDK's ``AgentSettings`` validator
+          dropdown matches (the SDK's ``OpenHandsAgentSettings`` validator
           normalizes the other direction on load).
         * ``base_url`` is returned **as stored** so the three sync targets
           (``org.agent_settings.llm.base_url``,

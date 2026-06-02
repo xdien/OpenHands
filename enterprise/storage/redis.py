@@ -8,6 +8,7 @@ from redis import exceptions as redis_exceptions
 # Redis configuration
 REDIS_HOST = os.environ.get('REDIS_HOST', 'localhost')
 REDIS_PORT = int(os.environ.get('REDIS_PORT', '6379'))
+REDIS_USERNAME = os.environ.get('REDIS_USERNAME', '')
 REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD', '')
 REDIS_DB = int(os.environ.get('REDIS_DB', '0'))
 REDIS_SOCKET_TIMEOUT = 2
