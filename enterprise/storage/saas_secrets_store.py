@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -8,10 +10,12 @@ from storage.database import a_session_maker
 from storage.stored_custom_secrets import StoredCustomSecrets
 from storage.user_store import UserStore
 
+from openhands.app_server.integrations.provider import ProviderToken, ProviderType
 from openhands.app_server.secrets.secrets_models import Secrets
 from openhands.app_server.secrets.secrets_store import SecretsStore
 from openhands.app_server.services.jwt_service import JwtService
 from openhands.app_server.utils.logger import openhands_logger as logger
+from pydantic import SecretStr
 
 # Special key for storing provider tokens in custom_secrets table
 PROVIDER_TOKENS_KEY = '__provider_tokens__'
