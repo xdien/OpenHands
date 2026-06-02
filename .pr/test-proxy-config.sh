@@ -49,24 +49,24 @@ try:
     from urllib.parse import urlparse
     parsed_internal = urlparse(internal_url)
     parsed_external = urlparse(external_url)
-    
+
     print(f"\nInternal URL parsing:")
     print(f"  - Scheme: {parsed_internal.scheme}")
     print(f"  - Host: {parsed_internal.netloc}")
     print(f"  - Port: {parsed_internal.port or 'default'}")
-    
+
     print(f"\nExternal URL parsing:")
     print(f"  - Scheme: {parsed_external.scheme}")
     print(f"  - Host: {parsed_external.netloc}")
     print(f"  - Port: {parsed_external.port or 'default'}")
     print(f"  - Path: {parsed_external.path}")
-    
+
     # Check if external URL has proxy path
     if proxy_url_pattern and '/ws/:' in external_url:
         print(f"\n✅ Proxy mode detected: path contains '/ws/:{port}'")
     elif parsed_external.port and parsed_external.port > 30000:
         print(f"\n✅ Direct port mode: port {parsed_external.port}")
-    
+
 except Exception as e:
     print(f"❌ Error parsing URLs: {e}")
     sys.exit(1)
@@ -78,7 +78,7 @@ echo
 echo "3. Checking Nginx configuration (if installed)..."
 if [ -f "/etc/nginx/sites-enabled/openhands.conf" ] || [ -f "/etc/nginx/conf.d/openhands.conf" ]; then
     echo "✅ Nginx configuration found"
-    
+
     # Check if proxy routing is configured
     if grep -q "ws/:" /etc/nginx/sites-enabled/openhands.conf 2>/dev/null || \
        grep -q "ws/:" /etc/nginx/conf.d/openhands.conf 2>/dev/null; then

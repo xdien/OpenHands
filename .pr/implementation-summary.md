@@ -55,19 +55,19 @@ def _build_exposed_url(self, name, port, host_port, session_api_key, container):
     """Build ExposedUrl with internal and external URLs."""
     # Internal URL (always direct port access)
     internal_url = self.container_url_pattern.format(port=host_port)
-    
+
     # External URL (proxy pattern if configured, else fallback to internal)
     if self.proxy_url_pattern:
         external_url = self.proxy_url_pattern.format(port=host_port)
     else:
         external_url = internal_url
-    
+
     # VSCode URLs require authentication params
     if name == VSCODE:
         vscode_params = f"/?tkn={session_api_key}&folder={...}"
         internal_url += vscode_params
         external_url += vscode_params
-    
+
     return ExposedUrl(
         name=name,
         url=external_url,  # For frontend
@@ -95,13 +95,13 @@ async def _container_to_checked_sandbox_info(self, container):
         for exposed_url in sandbox_info.exposed_urls
         if exposed_url.name == AGENT_SERVER
     )
-    
+
     # Use internal_url for health check if available (proxy mode)
     # Otherwise use url (direct port mode)
     app_server_url = (
         app_server_exposed_url.internal_url or app_server_exposed_url.url
     )
-    
+
     # Health check with direct port URL
     response = await self.httpx_client.get(f"{app_server_url}/health")
 ```
@@ -254,7 +254,7 @@ class DockerSandboxService:
     container_url_pattern: str
     mounts: list[VolumeMount]
     ...
-    
+
     # Optional fields (with default) - MUST be last
     proxy_url_pattern: str | None = None  # ✅ after required
     web_url: str | None = None
@@ -357,7 +357,7 @@ AssertionError
 - StaticFiles only handles HTTP requests, not WebSocket
 - Nginx proxy not configured to route `/ws/{port}/` to sandbox
 
-**Solution:** 
+**Solution:**
 1. **Code fix:** Override `__call__()` in SPAStaticFiles to gracefully close WebSocket requests (prevents AssertionError)
 2. **Deployment fix:** Configure Nginx to route `/ws/{port}/` → `localhost:{port}` (routes WebSocket to sandbox)
 

@@ -80,14 +80,14 @@ Update `_container_to_sandbox_info()` to include both patterns:
 for exposed_port in self.exposed_ports:
     # Internal URL (for Docker internal communication)
     internal_url = self.container_url_pattern.format(port=host_port)
-    
+
     # External URL (for client access) - if proxy pattern is configured
     external_url = None
     if self.proxy_url_pattern:
         external_url = self.proxy_url_pattern.format(port=host_port)
     else:
         external_url = internal_url  # fallback to direct port access
-    
+
     exposed_urls.append(
         ExposedUrl(
             name=matching_port.name,
@@ -105,7 +105,7 @@ File: `openhands/app_server/sandbox/sandbox_models.py`
 ```python
 class ExposedUrl(BaseModel):
     """URL to access some named service within the container."""
-    
+
     name: str
     url: str  # External URL for client access
     port: int
@@ -145,7 +145,7 @@ export function extractPortFromUrl(
   if (!conversationUrl || conversationUrl.startsWith("/")) {
     return null;
   }
-  
+
   try {
     const url = new URL(conversationUrl);
     // Check if URL has explicit port (not default 80/443)
@@ -174,23 +174,23 @@ export function transformToProxyUrl(
   if (!conversationUrl || conversationUrl.startsWith("/")) {
     return conversationUrl;
   }
-  
+
   try {
     const url = new URL(conversationUrl);
     const port = extractPortFromUrl(conversationUrl);
-    
+
     if (!port) {
       // No port detected, use as-is
       return conversationUrl;
     }
-    
+
     // Get browser's current protocol and host
     const protocol = window.location.protocol;
     const host = window.location.host;
-    
+
     // Transform: http://host:45663/api/... → https://domain/ws/45663/api/...
     const newPath = `/ws/${port}${url.pathname}`;
-    
+
     return `${protocol}//${host}${newPath}`;
   } catch {
     return conversationUrl;
@@ -210,17 +210,17 @@ export function buildWebSocketUrl(
 
   // Transform URL if it has explicit port
   const transformedUrl = transformToProxyUrl(conversationUrl);
-  
+
   if (!transformedUrl) {
     return null;
   }
 
   const url = new URL(transformedUrl);
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  
+
   // WebSocket path: /ws/{port}/sockets/events/{conversationId}
   const wsPath = url.pathname.replace("/api/conversations/", "/sockets/events/");
-  
+
   return `${protocol}//${url.host}${wsPath}${conversationId}`;
 }
 ```
@@ -235,18 +235,18 @@ export function buildHttpBaseUrl(
 ): string {
   // Transform to proxy URL first
   const transformedUrl = transformToProxyUrl(conversationUrl);
-  
+
   if (!transformedUrl) {
     return `${window.location.protocol}//${window.location.host}`;
   }
-  
+
   try {
     const url = new URL(transformedUrl);
     const protocol = window.location.protocol;
-    
+
     // Extract base path (without /api/conversations)
     const basePath = url.pathname.split("/api/conversations")[0] || "";
-    
+
     return `${protocol}//${url.host}${basePath}`;
   } catch {
     return `${window.location.protocol}//${window.location.host}`;
@@ -336,7 +336,7 @@ http:
       entryPoints:
         - websecure
       tls: true
-    
+
     # Dynamic sandbox routing
     openhands-sandbox-ws:
       rule: "PathRegexp(`^/ws/[0-9]+/`)"
@@ -344,20 +344,20 @@ http:
       entryPoints:
         - websecure
       tls: true
-  
+
   services:
     openhands-app:
       loadBalancer:
         servers:
           - url: "http://localhost:3000"
-    
+
     sandbox-dynamic:
       loadBalancer:
         # Dynamic routing based on port in path
         servers:
           - url: "http://localhost:{port}"
         passHostHeader: true
-  
+
   middlewares:
     strip-ws-prefix:
       stripPrefixRegex:
@@ -372,14 +372,14 @@ http:
 
 frontend https_front
     bind *:443 ssl crt /etc/ssl/certs/openhands.pem
-    
+
     # ACL for sandbox WebSocket
     acl sandbox_ws path_beg /ws/
     acl is_ws hdr(Upgrade) -i WebSocket
-    
+
     # Extract port from path
     use_backend sandbox_dynamic if sandbox_ws
-    
+
     # Default backend
     default_backend openhands_app
 
@@ -388,7 +388,7 @@ backend openhands_app
     option http-server-close
     option forwardfor
     server app1 localhost:3000
-    
+
 backend sandbox_dynamic
     # Dynamic backend routing based on path
     # Note: Requires Lua scripting or external check
@@ -469,11 +469,11 @@ def test_exposed_url_with_proxy_pattern():
         ...
     )
     sandbox_info = await service._container_to_sandbox_info(container)
-    
+
     # External URL should use proxy pattern
     agent_url = next(u for u in sandbox_info.exposed_urls if u.name == AGENT_SERVER)
     assert 'domain.com/ws/45663' in agent_url.url
-    
+
     # Internal URL should use container pattern
     assert 'localhost:45663' in agent_url.internal_url
 ```
@@ -489,7 +489,7 @@ describe('transformToProxyUrl', () => {
     const result = transformToProxyUrl(original);
     expect(result).toBe('https://example.com/ws/45663/api/conversations/abc123');
   });
-  
+
   it('handles URLs without explicit port', () => {
     const original = 'https://domain.com/api/conversations/abc123';
     const result = transformToProxyUrl(original);
@@ -529,7 +529,7 @@ location ~ ^/ws/ {
     allow 10.0.0.0/8;    # Internal network
     allow 192.168.0.0/16; # VPN
     deny all;
-    
+
     # ... rest of proxy config
 }
 ```

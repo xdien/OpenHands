@@ -6,6 +6,7 @@ export const VERIFIED_PROVIDERS = [
   "mistral",
   "lemonade",
   "clarifai",
+  "minimax",
   "bailian",
 ];
 export const VERIFIED_MODELS = [
@@ -13,7 +14,11 @@ export const VERIFIED_MODELS = [
   "claude-sonnet-4-5-20250929",
   "gpt-5.2-codex",
   "gpt-5.2",
-  "minimax-m2.5",
+  "MiniMax-M2.5",
+  "MiniMax-M2.7",
+  "MiniMax-M3",
+  "speech-02-turbo",
+  "MiniMax-M2.5-lightning",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "deepseek-chat",
@@ -48,12 +53,22 @@ export const VERIFIED_ANTHROPIC_MODELS = [
 // (e.g., they return `devstral-small-2505` instead of `mistral/devstral-small-2505`)
 export const VERIFIED_MISTRAL_MODELS = ["devstral-medium-2512"];
 
+export const VERIFIED_MINIMAX_MODELS = [
+  "speech-02-turbo",
+  "MiniMax-M2.5-lightning",
+  "MiniMax-M2.5",
+  "MiniMax-M2.7",
+  "MiniMax-M3",
+];
+
 export const VERIFIED_BAILIAN_MODELS = [
   "qwen3.5-plus",
   "qwen3-max-2026-01-23",
   "qwen3-coder-next",
   "qwen3-coder-plus",
   "MiniMax-M2.5",
+  "MiniMax-M2.7",
+  "MiniMax-M3",
   "glm-5",
   "glm-4.7",
   "kimi-k2.5",
@@ -66,7 +81,9 @@ export const VERIFIED_OPENHANDS_MODELS = [
   "claude-sonnet-4-5-20250929",
   "gpt-5.2-codex",
   "gpt-5.2",
-  "minimax-m2.5",
+  "MiniMax-M2.5",
+  "MiniMax-M2.7",
+  "MiniMax-M3",
   "gemini-3-pro-preview",
   "gemini-3-flash-preview",
   "devstral-medium-2512",

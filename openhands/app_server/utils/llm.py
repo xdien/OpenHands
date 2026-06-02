@@ -64,8 +64,15 @@ VERIFIED_PROVIDERS: list[str] = list(_SDK_VERIFIED_MODELS.keys())
 _BARE_OPENAI_MODELS: set[str] = set(_SDK_OPENAI)
 _BARE_ANTHROPIC_MODELS: set[str] = set(_SDK_ANTHROPIC)
 _BARE_MISTRAL_MODELS: set[str] = set(_SDK_MISTRAL)
+_BARE_MINIMAX_MODELS: set[str] = {
+    'speech-02-turbo',
+    'MiniMax-M2.5-lightning',
+    'MiniMax-M2.5',
+    'MiniMax-M2.7',
+    'MiniMax-M3',
+}
 
-DEFAULT_OPENHANDS_MODEL = 'openhands/minimax-m2.7'
+DEFAULT_OPENHANDS_MODEL = 'openhands/MiniMax-M2.7'
 
 
 BAILIAN_MODELS = [
@@ -74,10 +81,24 @@ BAILIAN_MODELS = [
     'bailian/qwen3-coder-next',
     'bailian/qwen3-coder-plus',
     'bailian/MiniMax-M2.5',
+    'bailian/MiniMax-M2.7',
+    'bailian/MiniMax-M3',
     'bailian/glm-5',
     'bailian/glm-4.7',
     'bailian/kimi-k2.5',
 ]
+
+MINIMAX_MODELS = [
+    'minimax/speech-02-turbo',
+    'minimax/MiniMax-M2.5-lightning',
+    'minimax/MiniMax-M2.5',
+    'minimax/MiniMax-M2.7',
+    'minimax/MiniMax-M3',
+]
+
+MINIMAX_API_BASE = 'https://api.minimax.io/v1'
+MINIMAX_API_BASE_CHINA = 'https://api.minimaxi.com/v1'
+
 
 # ---------------------------------------------------------------------------
 # Structured API response returned by ``/api/options/models``.
@@ -98,8 +119,6 @@ class ModelsResponse(BaseModel):
     verified_models: list[str]
     verified_providers: list[str]
     default_model: str
-
-
 
 
 def is_openhands_model(model: str | None) -> bool:
@@ -188,6 +207,9 @@ def get_provider_api_base(model: str) -> str | None:
     Returns:
         The API base URL if found, None otherwise.
     """
+    if model and model.startswith('minimax/'):
+        return MINIMAX_API_BASE
+
     # First try get_api_base (handles OpenAI, Gemini with specific URL patterns)
     try:
         api_base = litellm.get_api_base(model, {})
@@ -256,6 +278,14 @@ def _assign_provider(model: str) -> str:
         return f'anthropic/{model}'
     if model in _BARE_MISTRAL_MODELS:
         return f'mistral/{model}'
+    if model in _BARE_MINIMAX_MODELS:
+        return f'minimax/{model}'
+    if model.lower().startswith('minimax-'):
+        # Handle SDK's lowercase minimax-m2.5 format by converting to proper case
+        # e.g., "minimax-m2.5" -> "MiniMax-M2.5"
+        proper_model = 'MiniMax' + model[7:]
+        proper_model = proper_model.replace('-m', '-M')
+        return f'minimax/{proper_model}'
 
     try:
         _, provider, _, _ = get_llm_provider(model)
@@ -302,7 +332,13 @@ def get_supported_llm_models(
 
     # Use database-backed models if provided (SaaS), otherwise use hardcoded list
     openhands_models = verified_models if verified_models else OPENHANDS_MODELS
-    model_list = openhands_models + CLARIFAI_MODELS + BAILIAN_MODELS + model_list
+    model_list = (
+        openhands_models
+        + CLARIFAI_MODELS
+        + BAILIAN_MODELS
+        + MINIMAX_MODELS
+        + model_list
+    )
 
     # Assign canonical provider prefixes to bare LiteLLM names, then dedupe.
     all_models = (

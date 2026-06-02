@@ -158,8 +158,8 @@ class RemoteSandboxService(SandboxService):
                     vscode_port = runtime.get('vscode_port', VSCODE_PORT)
                     parsed_url = urlparse(url)
                     vscode_url = (
-                        f"{parsed_url.scheme}://{parsed_url.netloc}/vscode/{vscode_port}"
-                        + f"?tkn={session_api_key}&folder=%2Fworkspace%2Fproject"
+                        f'{parsed_url.scheme}://{parsed_url.netloc}/vscode/{vscode_port}'
+                        + f'?tkn={session_api_key}&folder=%2Fworkspace%2Fproject'
                     )
                     exposed_urls.append(
                         ExposedUrl(name=VSCODE, url=vscode_url, port=vscode_port)

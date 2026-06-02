@@ -42,7 +42,6 @@ from openhands.app_server.utils.dependencies import get_dependencies
 from openhands.app_server.utils.llm import (
     get_provider_api_base,
     is_openhands_model,
-    resolve_llm_base_url,
 )
 from openhands.app_server.utils.logger import openhands_logger as logger
 from openhands.sdk.llm import LLM
@@ -77,13 +76,12 @@ def _post_merge_llm_fixups(settings: Settings) -> None:
     if llm.base_url == '':
         llm.base_url = None
     elif llm.base_url is None and llm.model:
-        _BAILIAN_MODEL_PATTERNS = ["qwen", "glm", "kimi", "minimax"]
-        is_bailian = (
-            llm.model.startswith("bailian/") or
-            any(llm.model.lower().startswith(p.lower()) for p in _BAILIAN_MODEL_PATTERNS)
+        _BAILIAN_MODEL_PATTERNS = ['qwen', 'glm', 'kimi', 'minimax']
+        is_bailian = llm.model.startswith('bailian/') or any(
+            llm.model.lower().startswith(p.lower()) for p in _BAILIAN_MODEL_PATTERNS
         )
         if is_bailian:
-            llm.base_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
+            llm.base_url = 'https://coding-intl.dashscope.aliyuncs.com/v1'
         elif is_openhands_model(llm.model):
             llm.base_url = LITE_LLM_API_URL
         else:

@@ -49,11 +49,11 @@ server {
     listen 80;
     listen 443 ssl http2;
     server_name your-domain.com;
-    
+
     # SSL certificate (recommended)
     ssl_certificate /etc/ssl/certs/your-domain.com.crt;
     ssl_certificate_key /etc/ssl/private/your-domain.com.key;
-    
+
     # Main application routes
     location / {
         proxy_pass http://openhands_app;
@@ -63,32 +63,32 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-    
+
     # Sandbox WebSocket and HTTP routing
     # Pattern: /ws/:{port}/... → localhost:{port}/...
     location ~ ^/ws/:(?<sandbox_port>\d+)/(.*)$ {
         # Dynamic proxy to sandbox port
         proxy_pass http://localhost:$sandbox_port/$2;
-        
+
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        
+
         # Standard headers
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Long timeout for WebSocket connections (24 hours)
         proxy_read_timeout 86400;
         proxy_send_timeout 86400;
-        
+
         # Buffer settings for WebSocket
         proxy_buffering off;
     }
-    
+
     # Optional: Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
@@ -114,7 +114,7 @@ services:
       - "traefik.http.routers.openhands.rule=PathPrefix(`/`)"
       - "traefik.http.routers.openhands.entrypoints=websecure"
       - "traefik.http.routers.openhands.tls=true"
-      
+
   traefik:
     image: traefik:v2.10
     command:
@@ -140,7 +140,7 @@ http:
       entryPoints:
         - websecure
       tls: true
-  
+
   services:
     sandbox-service:
       loadBalancer:
@@ -158,20 +158,20 @@ http:
 
 <VirtualHost *:443>
     ServerName your-domain.com
-    
+
     SSLEngine on
     SSLCertificateFile /etc/ssl/certs/your-domain.com.crt
     SSLCertificateKeyFile /etc/ssl/private/your-domain.com.key
-    
+
     # Main application
     ProxyPass / http://localhost:3000/
     ProxyPassReverse / http://localhost:3000/
-    
+
     # Sandbox routing with regex (requires mod_proxy and mod_rewrite)
     RewriteEngine On
     RewriteCond %{REQUEST_URI} ^/ws/:[0-9]+/(.*)$
     RewriteRule ^/ws/:[0-9]+/(.*)$ http://localhost:${MATCH_PORT}/$1 [P,L]
-    
+
     # WebSocket support
     ProxyPreserveHost On
     ProxyPassReverseCookiePath / /

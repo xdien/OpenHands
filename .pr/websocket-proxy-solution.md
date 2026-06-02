@@ -53,22 +53,22 @@ async def websocket_proxy(
 ):
     """
     WebSocket proxy that relays connections between frontend and sandbox agent server.
-    
+
     Flow:
     1. Frontend connects: /ws/{port}/sockets/events/{id}
     2. Proxy connects to sandbox: ws://localhost:{port}/sockets/events/{id}
     3. Bidirectional message relay
     """
     await websocket.accept()
-    
+
     # Get sandbox info from internal lookup
     # For now, assume sandbox is accessible at localhost:{port}
     # In production, use sandbox service to get actual URL
-    
+
     sandbox_ws_url = f"ws://localhost:{sandbox_port}/sockets/events/{conversation_id}"
-    
+
     _logger.info(f"WebSocket proxy: {sandbox_ws_url}")
-    
+
     # Connect to sandbox WebSocket
     sandbox_ws = None
     try:
@@ -76,25 +76,25 @@ async def websocket_proxy(
         async with httpx.AsyncClient() as client:
             # Note: httpx doesn't support WebSocket directly
             # Need to use websockets library or custom implementation
-            
+
             # Alternative: Use websockets library
             import websockets
-            
+
             # Build query params for sandbox connection
             params = {}
             if session_api_key:
                 params["session_api_key"] = session_api_key
             if resend_all:
                 params["resend_all"] = "true"
-            
+
             query_string = "&".join(f"{k}={v}" for k, v in params.items())
             if query_string:
                 sandbox_ws_url += f"?{query_string}"
-            
+
             sandbox_ws = await websockets.connect(sandbox_ws_url)
-            
+
             _logger.info(f"Connected to sandbox WebSocket: {sandbox_ws_url}")
-            
+
             # Bidirectional relay
             async def relay_from_frontend():
                 """Relay messages from frontend to sandbox."""
@@ -106,7 +106,7 @@ async def websocket_proxy(
                     _logger.info("Frontend disconnected")
                 except Exception as e:
                     _logger.error(f"Error relaying from frontend: {e}")
-            
+
             async def relay_from_sandbox():
                 """Relay messages from sandbox to frontend."""
                 try:
@@ -115,18 +115,18 @@ async def websocket_proxy(
                         await websocket.send_text(data)
                 except Exception as e:
                     _logger.info(f"Sandbox WebSocket closed: {e}")
-            
+
             # Run both relays concurrently
             await asyncio.gather(
                 relay_from_frontend(),
                 relay_from_sandbox(),
                 return_exceptions=True,
             )
-    
+
     except Exception as e:
         _logger.error(f"WebSocket proxy error: {e}")
         await websocket.close(code=1000, reason=str(e))
-    
+
     finally:
         if sandbox_ws:
             await sandbox_ws.close()
@@ -152,19 +152,19 @@ async def websocket_proxy_alternative(websocket: WebSocket, sandbox_port: int, c
     Alternative implementation using raw WebSocket relay.
     """
     await websocket.accept()
-    
+
     # For production: Use sandbox service to get connection details
     # sandbox = await sandbox_service.get_sandbox_by_port(sandbox_port)
     # sandbox_url = sandbox.internal_url or sandbox_url_pattern.format(port=sandbox_port)
-    
+
     # For now: Direct localhost connection (works if on same machine)
     sandbox_url = f"ws://localhost:{sandbox_port}/sockets/events/{conversation_id}"
-    
+
     # Need custom WebSocket client implementation
     # Using websockets library: pip install websockets
-    
+
     import websockets
-    
+
     try:
         async with websockets.connect(sandbox_url) as sandbox_ws:
             # Bidirectional relay
@@ -175,14 +175,14 @@ async def websocket_proxy_alternative(websocket: WebSocket, sandbox_port: int, c
                         await sandbox_ws.send(msg.get("text", ""))
                     elif msg["type"] == "websocket.disconnect":
                         break
-            
+
             async def sandbox_to_client():
                 while True:
                     msg = await sandbox_ws.recv()
                     await websocket.send_text(msg)
-            
+
             await asyncio.gather(client_to_sandbox(), sandbox_to_client())
-    
+
     except Exception as e:
         _logger.error(f"Proxy error: {e}")
         await websocket.close()

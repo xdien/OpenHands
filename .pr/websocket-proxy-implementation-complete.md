@@ -50,11 +50,11 @@ Result: WebSocket works! ✅
 @router.websocket("/ws/{sandbox_port}/sockets/events/{conversation_id}")
 async def websocket_proxy_to_sandbox(websocket, sandbox_port, conversation_id, ...):
     await websocket.accept()
-    
+
     # Connect to sandbox WebSocket
     sandbox_ws_url = f"ws://localhost:{sandbox_port}/sockets/events/{conversation_id}"
     sandbox_ws = await websockets.connect(sandbox_ws_url)
-    
+
     # Bidirectional relay
     await asyncio.gather(
         relay_frontend_to_sandbox(),
@@ -191,7 +191,7 @@ async def test_websocket_proxy():
     async with websockets.connect(ws_url) as ws:
         # Send test message
         await ws.send("{\"type\": \"ping\"}")
-        
+
         # Receive response
         response = await ws.recv()
         print(f"Received: {response}")

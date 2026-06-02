@@ -5,6 +5,7 @@ import {
   VERIFIED_OPENAI_MODELS,
   VERIFIED_OPENHANDS_MODELS,
   VERIFIED_BAILIAN_MODELS,
+  VERIFIED_MINIMAX_MODELS,
 } from "./verified-models";
 
 /**
@@ -58,6 +59,9 @@ export const extractModelAndProvider = (model: string) => {
     }
     if (VERIFIED_BAILIAN_MODELS.includes(split[0])) {
       return { provider: "bailian", model: split[0], separator: "/" };
+    }
+    if (VERIFIED_MINIMAX_MODELS.includes(split[0])) {
+      return { provider: "minimax", model: split[0], separator: "/" };
     }
     // return as model only
     return { provider: "", model, separator: "" };

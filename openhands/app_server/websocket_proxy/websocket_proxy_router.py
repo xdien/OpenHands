@@ -107,19 +107,23 @@ async def websocket_proxy_to_sandbox(websocket: WebSocket) -> None:
 
         # Build headers for WebSocket connection
         ws_headers = {}
-        
+
         # Forward cookies from the original WebSocket connection
         # VSCode WebSocket needs the vscode-tkn cookie for authentication
-        cookie_header = websocket.headers.get('cookie') or websocket.headers.get('Cookie')
+        cookie_header = websocket.headers.get('cookie') or websocket.headers.get(
+            'Cookie'
+        )
         if cookie_header:
             ws_headers['Cookie'] = cookie_header
-            logger.info(f'Forwarding cookie header to WebSocket')
-        
+            logger.info('Forwarding cookie header to WebSocket')
+
         # Forward X-Session-API-Key header if present
-        session_key = websocket.headers.get('x-session-api-key') or websocket.headers.get('X-Session-API-Key')
+        session_key = websocket.headers.get(
+            'x-session-api-key'
+        ) or websocket.headers.get('X-Session-API-Key')
         if session_key:
             ws_headers['X-Session-API-Key'] = session_key
-            logger.info(f'Forwarding X-Session-API-Key header to WebSocket')
+            logger.info('Forwarding X-Session-API-Key header to WebSocket')
 
         try:
             sandbox_ws = await websockets.connect(

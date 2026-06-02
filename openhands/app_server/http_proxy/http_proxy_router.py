@@ -17,7 +17,7 @@ instead of directly connecting to random ports.
 
 import logging
 import os
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlencode
 
 import httpx
 from starlette.requests import Request
@@ -97,7 +97,9 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
                     query_string = urlencode(filtered_params, doseq=True)
                 else:
                     query_string = ''
-            logger.info(f'Extracted tkn from query for auth, is_vscode={is_vscode_port}')
+            logger.info(
+                f'Extracted tkn from query for auth, is_vscode={is_vscode_port}'
+            )
 
     # For VSCode ports, if no token in query, try to get from X-Session-API-Key header
     # This handles cases where frontend passes token via header instead of query
@@ -105,7 +107,7 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
         header_token = request.headers.get('X-Session-API-Key')
         if header_token:
             token = header_token
-            logger.info(f'Extracted tkn from X-Session-API-Key header for VSCode')
+            logger.info('Extracted tkn from X-Session-API-Key header for VSCode')
 
     logger.info(f'HTTP PROXY: /proxy/{sandbox_port}/{remaining_path}')
 
@@ -167,7 +169,9 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
                 # Pass token via header for VSCode authentication (survives redirects)
                 if token:
                     headers['X-Session-API-Key'] = token
-                    logger.info(f'Added X-Session-API-Key header for port {sandbox_port}')
+                    logger.info(
+                        f'Added X-Session-API-Key header for port {sandbox_port}'
+                    )
 
                 # Log headers for debugging redirect loops
                 logger.info(
@@ -200,28 +204,30 @@ async def http_proxy_to_sandbox(request: Request) -> Response:
                     )
                     if location:
                         # Rewrite relative redirects to include /proxy/{sandbox_port}/ prefix
-                        needs_rewrite = (
-                            location.startswith('/')
-                            and not location.startswith(f'/proxy/{sandbox_port}')
-                        )
+                        needs_rewrite = location.startswith(
+                            '/'
+                        ) and not location.startswith(f'/proxy/{sandbox_port}')
 
                         is_vscode_port = 40000 <= sandbox_port <= 49999
 
                         if needs_rewrite:
                             location = f'/proxy/{sandbox_port}{location}'
-                            logger.info(f'Added /proxy/{sandbox_port} prefix to redirect')
+                            logger.info(
+                                f'Added /proxy/{sandbox_port} prefix to redirect'
+                            )
 
                         # For VSCode ports, don't add token to redirect
                         # The initial request from browser has token, subsequent requests use cookie
                         if not is_vscode_port and token:
-
                             # Update location header
                             if location.startswith('/'):
                                 response_headers['location'] = location
                                 response_headers['Location'] = location
                                 logger.info(f'Rewritten redirect Location: {location}')
                             else:
-                                logger.info(f'No rewrite needed for location: {location}')
+                                logger.info(
+                                    f'No rewrite needed for location: {location}'
+                                )
 
                 # Remove X-Frame-Options header to allow embedding in iframe
                 # This is necessary because OpenHands displays apps in iframes
@@ -301,7 +307,8 @@ async def http_vscode_proxy_to_sandbox(request: Request) -> Response:
     parts = path.split('/')
     if len(parts) < 3:
         return Response(
-            status_code=400, content='Invalid VSCode proxy path format. Use /vscode/{port}/...'
+            status_code=400,
+            content='Invalid VSCode proxy path format. Use /vscode/{port}/...',
         )
 
     try:
@@ -330,7 +337,9 @@ async def http_vscode_proxy_to_sandbox(request: Request) -> Response:
         parsed = parse_qs(query_string, keep_blank_values=True)
         if 'tkn' in parsed:
             token = parsed['tkn'][0]
-            logger.info(f'VSCode proxy: extracted tkn from query for port {sandbox_port}')
+            logger.info(
+                f'VSCode proxy: extracted tkn from query for port {sandbox_port}'
+            )
 
     logger.info(f'VSCode PROXY: /vscode/{sandbox_port}{remaining_path}')
 
@@ -424,7 +433,9 @@ async def http_vscode_proxy_to_sandbox(request: Request) -> Response:
                             f'/vscode/{sandbox_port}'
                         ):
                             location = f'/vscode/{sandbox_port}{location}'
-                            logger.info(f'VSCode: Added /vscode/{sandbox_port} prefix to redirect')
+                            logger.info(
+                                f'VSCode: Added /vscode/{sandbox_port} prefix to redirect'
+                            )
 
                         # IMPORTANT: Don't add token to redirect for VSCode
                         # VSCode uses cookie-based auth after first request
@@ -434,7 +445,9 @@ async def http_vscode_proxy_to_sandbox(request: Request) -> Response:
                         if location.startswith('/'):
                             response_headers['location'] = location
                             response_headers['Location'] = location
-                            logger.info(f'VSCode rewritten redirect Location: {location}')
+                            logger.info(
+                                f'VSCode rewritten redirect Location: {location}'
+                            )
 
                 # Remove X-Frame-Options header to allow embedding in iframe
                 xfo_headers = ['x-frame-options', 'X-Frame-Options']
@@ -448,7 +461,9 @@ async def http_vscode_proxy_to_sandbox(request: Request) -> Response:
                 csp_headers = ['content-security-policy', 'Content-Security-Policy']
                 for csp in csp_headers:
                     if csp in response_headers:
-                        logger.info(f'VSCode: Removing {csp} header to avoid browser CSP errors')
+                        logger.info(
+                            f'VSCode: Removing {csp} header to avoid browser CSP errors'
+                        )
                         del response_headers[csp]
 
                 # Return the response
@@ -494,7 +509,8 @@ async def http_worker1_proxy_to_sandbox(request: Request) -> Response:
     parts = path.split('/')
     if len(parts) < 3:
         return Response(
-            status_code=400, content='Invalid Worker1 proxy path format. Use /worker1/{port}/...'
+            status_code=400,
+            content='Invalid Worker1 proxy path format. Use /worker1/{port}/...',
         )
 
     try:
@@ -599,7 +615,9 @@ async def http_worker1_proxy_to_sandbox(request: Request) -> Response:
                             f'/worker1/{sandbox_port}'
                         ):
                             location = f'/worker1/{sandbox_port}{location}'
-                            logger.info(f'Worker1: Added /worker1/{sandbox_port} prefix to redirect')
+                            logger.info(
+                                f'Worker1: Added /worker1/{sandbox_port} prefix to redirect'
+                            )
 
                         if location.startswith('/'):
                             response_headers['location'] = location

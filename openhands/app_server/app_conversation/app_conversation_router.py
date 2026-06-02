@@ -100,7 +100,7 @@ else:
 # We use the get_dependencies method here to signal to the OpenAPI docs that this endpoint
 # is protected. The actual protection is provided by SetAuthCookieMiddleware
 router = APIRouter(
-    prefix="/app-conversations", tags=["Conversations"], dependencies=get_dependencies()
+    prefix='/app-conversations', tags=['Conversations'], dependencies=get_dependencies()
 )
 logger = logging.getLogger(__name__)
 app_conversation_service_dependency = depends_app_conversation_service()
@@ -153,7 +153,7 @@ async def _get_agent_server_context(
     if not conversation:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"error": f"Conversation {conversation_id} not found"},
+            content={'error': f'Conversation {conversation_id} not found'},
         )
 
     # Get the sandbox info
@@ -161,7 +161,7 @@ async def _get_agent_server_context(
     if not sandbox:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"error": f"Sandbox not found for conversation {conversation_id}"},
+            content={'error': f'Sandbox not found for conversation {conversation_id}'},
         )
     # Return None for paused sandboxes (closed conversation)
     if sandbox.status == SandboxStatus.PAUSED:
@@ -170,7 +170,7 @@ async def _get_agent_server_context(
     if sandbox.status != SandboxStatus.RUNNING:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"error": f"Sandbox not ready for conversation {conversation_id}"},
+            content={'error': f'Sandbox not ready for conversation {conversation_id}'},
         )
 
     # Get the sandbox spec to find the working directory
@@ -179,14 +179,14 @@ async def _get_agent_server_context(
         # TODO: This is a temporary work around for the fact that we don't store previous
         # sandbox spec versions when updating OpenHands. When the SandboxSpecServices
         # transition to truly multi sandbox spec model this should raise a 404 error
-        logger.warning("Sandbox spec not found - using default.")
+        logger.warning('Sandbox spec not found - using default.')
         sandbox_spec = await sandbox_spec_service.get_default_sandbox_spec()
 
     # Get the agent server URL
     if not sandbox.exposed_urls:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"error": "No agent server URL found for sandbox"},
+            content={'error': 'No agent server URL found for sandbox'},
         )
 
     agent_server_url = None
@@ -200,7 +200,7 @@ async def _get_agent_server_context(
     if not agent_server_url:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
-            content={"error": "Agent server URL not found in sandbox"},
+            content={'error': 'Agent server URL not found in sandbox'},
         )
 
     agent_server_url = replace_localhost_hostname_for_docker(agent_server_url)
@@ -217,40 +217,40 @@ async def _get_agent_server_context(
 # Read methods
 
 
-@router.get("/search")
+@router.get('/search')
 async def search_app_conversations(
     title__contains: Annotated[
         str | None,
-        Query(title="Filter by title containing this string"),
+        Query(title='Filter by title containing this string'),
     ] = None,
     created_at__gte: Annotated[
         datetime | None,
-        Query(title="Filter by created_at greater than or equal to this datetime"),
+        Query(title='Filter by created_at greater than or equal to this datetime'),
     ] = None,
     created_at__lt: Annotated[
         datetime | None,
-        Query(title="Filter by created_at less than this datetime"),
+        Query(title='Filter by created_at less than this datetime'),
     ] = None,
     updated_at__gte: Annotated[
         datetime | None,
-        Query(title="Filter by updated_at greater than or equal to this datetime"),
+        Query(title='Filter by updated_at greater than or equal to this datetime'),
     ] = None,
     updated_at__lt: Annotated[
         datetime | None,
-        Query(title="Filter by updated_at less than this datetime"),
+        Query(title='Filter by updated_at less than this datetime'),
     ] = None,
     sandbox_id__eq: Annotated[
         str | None,
-        Query(title="Filter by exact sandbox_id"),
+        Query(title='Filter by exact sandbox_id'),
     ] = None,
     page_id: Annotated[
         str | None,
-        Query(title="Optional next_page_id from the previously returned page"),
+        Query(title='Optional next_page_id from the previously returned page'),
     ] = None,
     limit: Annotated[
         int,
         Query(
-            title="The max number of results in the page",
+            title='The max number of results in the page',
             gt=0,
             le=100,
         ),
@@ -258,7 +258,7 @@ async def search_app_conversations(
     include_sub_conversations: Annotated[
         bool,
         Query(
-            title="If True, include sub-conversations in the results. If False (default), exclude all sub-conversations."
+            title='If True, include sub-conversations in the results. If False (default), exclude all sub-conversations.'
         ),
     ] = False,
     app_conversation_service: AppConversationService = (
@@ -279,31 +279,31 @@ async def search_app_conversations(
     )
 
 
-@router.get("/count")
+@router.get('/count')
 async def count_app_conversations(
     title__contains: Annotated[
         str | None,
-        Query(title="Filter by title containing this string"),
+        Query(title='Filter by title containing this string'),
     ] = None,
     created_at__gte: Annotated[
         datetime | None,
-        Query(title="Filter by created_at greater than or equal to this datetime"),
+        Query(title='Filter by created_at greater than or equal to this datetime'),
     ] = None,
     created_at__lt: Annotated[
         datetime | None,
-        Query(title="Filter by created_at less than this datetime"),
+        Query(title='Filter by created_at less than this datetime'),
     ] = None,
     updated_at__gte: Annotated[
         datetime | None,
-        Query(title="Filter by updated_at greater than or equal to this datetime"),
+        Query(title='Filter by updated_at greater than or equal to this datetime'),
     ] = None,
     updated_at__lt: Annotated[
         datetime | None,
-        Query(title="Filter by updated_at less than this datetime"),
+        Query(title='Filter by updated_at less than this datetime'),
     ] = None,
     sandbox_id__eq: Annotated[
         str | None,
-        Query(title="Filter by exact sandbox_id"),
+        Query(title='Filter by exact sandbox_id'),
     ] = None,
     app_conversation_service: AppConversationService = (
         app_conversation_service_dependency
@@ -320,7 +320,7 @@ async def count_app_conversations(
     )
 
 
-@router.get("")
+@router.get('')
 async def batch_get_app_conversations(
     ids: Annotated[list[str], Query()],
     app_conversation_service: AppConversationService = (
@@ -335,7 +335,7 @@ async def batch_get_app_conversations(
     if len(ids) >= 100:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Too many ids requested. Maximum is 99.",
+            detail='Too many ids requested. Maximum is 99.',
         )
 
     uuids: list[UUID] = []
@@ -349,7 +349,7 @@ async def batch_get_app_conversations(
     if invalid_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid UUID format for ids: {invalid_ids}",
+            detail=f'Invalid UUID format for ids: {invalid_ids}',
         )
 
     app_conversations = await app_conversation_service.batch_get_app_conversations(
@@ -358,7 +358,7 @@ async def batch_get_app_conversations(
     return app_conversations
 
 
-@router.post("")
+@router.post('')
 async def start_app_conversation(
     request: Request,
     start_request: AppConversationStartRequest,
@@ -408,7 +408,7 @@ async def start_app_conversation(
         raise
 
 
-@router.patch("/{conversation_id}")
+@router.patch('/{conversation_id}')
 async def update_app_conversation(
     conversation_id: str,
     update_request: AppConversationUpdateRequest,
@@ -420,7 +420,7 @@ async def update_app_conversation(
         UUID(conversation_id), update_request
     )
     if info is None:
-        raise HTTPException(404, "unknown_app_conversation")
+        raise HTTPException(404, 'unknown_app_conversation')
     return info
 
 
@@ -867,7 +867,7 @@ async def delete_app_conversation(
     return Success()
 
 
-@router.post("/stream-start")
+@router.post('/stream-start')
 async def stream_app_conversation_start(
     request: AppConversationStartRequest,
     user_context: UserContext = user_context_dependency,
@@ -877,33 +877,33 @@ async def stream_app_conversation_start(
     """
     response = StreamingResponse(
         _stream_app_conversation_start(request, user_context),
-        media_type="application/json",
+        media_type='application/json',
     )
     return response
 
 
-@router.get("/start-tasks/search")
+@router.get('/start-tasks/search')
 async def search_app_conversation_start_tasks(
     conversation_id__eq: Annotated[
         UUID | None,
-        Query(title="Filter by conversation ID equal to this value"),
+        Query(title='Filter by conversation ID equal to this value'),
     ] = None,
     created_at__gte: Annotated[
         datetime | None,
-        Query(title="Filter by created_at greater than or equal to this datetime"),
+        Query(title='Filter by created_at greater than or equal to this datetime'),
     ] = None,
     sort_order: Annotated[
         AppConversationStartTaskSortOrder,
-        Query(title="Sort order for the results"),
+        Query(title='Sort order for the results'),
     ] = AppConversationStartTaskSortOrder.CREATED_AT_DESC,
     page_id: Annotated[
         str | None,
-        Query(title="Optional next_page_id from the previously returned page"),
+        Query(title='Optional next_page_id from the previously returned page'),
     ] = None,
     limit: Annotated[
         int,
         Query(
-            title="The max number of results in the page",
+            title='The max number of results in the page',
             gt=0,
             le=100,
         ),
@@ -924,15 +924,15 @@ async def search_app_conversation_start_tasks(
     )
 
 
-@router.get("/start-tasks/count")
+@router.get('/start-tasks/count')
 async def count_app_conversation_start_tasks(
     conversation_id__eq: Annotated[
         UUID | None,
-        Query(title="Filter by conversation ID equal to this value"),
+        Query(title='Filter by conversation ID equal to this value'),
     ] = None,
     created_at__gte: Annotated[
         datetime | None,
-        Query(title="Filter by created_at greater than or equal to this datetime"),
+        Query(title='Filter by created_at greater than or equal to this datetime'),
     ] = None,
     app_conversation_start_task_service: AppConversationStartTaskService = (
         app_conversation_start_task_service_dependency
@@ -945,7 +945,7 @@ async def count_app_conversation_start_tasks(
     )
 
 
-@router.get("/start-tasks")
+@router.get('/start-tasks')
 async def batch_get_app_conversation_start_tasks(
     ids: Annotated[list[UUID], Query()],
     app_conversation_start_task_service: AppConversationStartTaskService = (
@@ -956,7 +956,7 @@ async def batch_get_app_conversation_start_tasks(
     if len(ids) > 100:
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot request more than 100 start tasks at once, got {len(ids)}",
+            detail=f'Cannot request more than 100 start tasks at once, got {len(ids)}',
         )
     start_tasks = await app_conversation_start_task_service.batch_get_app_conversation_start_tasks(
         ids
@@ -964,13 +964,13 @@ async def batch_get_app_conversation_start_tasks(
     return start_tasks
 
 
-@router.get("/{conversation_id}/file")
+@router.get('/{conversation_id}/file')
 async def read_conversation_file(
     conversation_id: UUID,
     file_path: Annotated[
         str,
-        Query(title="Path to the file to read within the sandbox workspace"),
-    ] = "/workspace/project/PLAN.md",
+        Query(title='Path to the file to read within the sandbox workspace'),
+    ] = '/workspace/project/PLAN.md',
     app_conversation_service: AppConversationService = (
         app_conversation_service_dependency
     ),
@@ -991,21 +991,21 @@ async def read_conversation_file(
     # Get the conversation info
     conversation = await app_conversation_service.get_app_conversation(conversation_id)
     if not conversation:
-        return ""
+        return ''
 
     # Get the sandbox info
     sandbox = await sandbox_service.get_sandbox(conversation.sandbox_id)
     if not sandbox or sandbox.status != SandboxStatus.RUNNING:
-        return ""
+        return ''
 
     # Get the sandbox spec to find the working directory
     sandbox_spec = await sandbox_spec_service.get_sandbox_spec(sandbox.sandbox_spec_id)
     if not sandbox_spec:
-        return ""
+        return ''
 
     # Get the agent server URL
     if not sandbox.exposed_urls:
-        return ""
+        return ''
 
     agent_server_url = None
     for exposed_url in sandbox.exposed_urls:
@@ -1016,7 +1016,7 @@ async def read_conversation_file(
             break
 
     if not agent_server_url:
-        return ""
+        return ''
 
     agent_server_url = replace_localhost_hostname_for_docker(agent_server_url)
 
@@ -1031,7 +1031,7 @@ async def read_conversation_file(
     temp_file_path = None
     try:
         # Create a temporary file path to download the remote file
-        with tempfile.NamedTemporaryFile(mode="w+b", delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(mode='w+b', delete=False) as temp_file:
             temp_file_path = temp_file.name
 
         # Download the file from remote system
@@ -1042,10 +1042,10 @@ async def read_conversation_file(
 
         if result.success:
             # Read the content from the temporary file
-            with open(temp_file_path, "rb") as f:
+            with open(temp_file_path, 'rb') as f:
                 content = f.read()
             # Decode bytes to string
-            return content.decode("utf-8")
+            return content.decode('utf-8')
     except Exception:
         # If there's any error reading the file, return empty string
         pass
@@ -1058,7 +1058,7 @@ async def read_conversation_file(
                 # Ignore errors during cleanup
                 pass
 
-    return ""
+    return ''
 
 
 async def _proxy_git_runtime_call(
@@ -1229,10 +1229,10 @@ async def get_conversation_skills(
         if isinstance(ctx, JSONResponse):
             return ctx
         if ctx is None:
-            return JSONResponse(status_code=status.HTTP_200_OK, content={"skills": []})
+            return JSONResponse(status_code=status.HTTP_200_OK, content={'skills': []})
 
         # Load skills from all sources
-        logger.info(f"Loading skills for conversation {conversation_id}")
+        logger.info(f'Loading skills for conversation {conversation_id}')
 
         # Prefer the shared loader to avoid duplication; otherwise return empty list.
         all_skills: list = []
@@ -1248,28 +1248,28 @@ async def get_conversation_skills(
             )
 
         logger.info(
-            f"Loaded {len(all_skills)} skills for conversation {conversation_id}: "
-            f"{[s.name for s in all_skills]}"
+            f'Loaded {len(all_skills)} skills for conversation {conversation_id}: '
+            f'{[s.name for s in all_skills]}'
         )
 
         # Transform skills to response format
         skills_response = []
         for skill in all_skills:
             # Determine type based on AgentSkills format and trigger
-            skill_type: Literal["repo", "knowledge", "agentskills"]
+            skill_type: Literal['repo', 'knowledge', 'agentskills']
             if skill.is_agentskills_format:
-                skill_type = "agentskills"
+                skill_type = 'agentskills'
             elif skill.trigger is None:
-                skill_type = "repo"
+                skill_type = 'repo'
             else:
-                skill_type = "knowledge"
+                skill_type = 'knowledge'
 
             # Extract triggers
             triggers: list[str] = []
             if isinstance(skill.trigger, (KeywordTrigger, TaskTrigger)):
-                if hasattr(skill.trigger, "keywords"):
+                if hasattr(skill.trigger, 'keywords'):
                     triggers = skill.trigger.keywords
-                elif hasattr(skill.trigger, "triggers"):
+                elif hasattr(skill.trigger, 'triggers'):
                     triggers = skill.trigger.triggers
 
             skills_response.append(
@@ -1283,18 +1283,18 @@ async def get_conversation_skills(
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content={"skills": [s.model_dump() for s in skills_response]},
+            content={'skills': [s.model_dump() for s in skills_response]},
         )
 
     except Exception as e:
-        logger.error(f"Error getting skills for conversation {conversation_id}: {e}")
+        logger.error(f'Error getting skills for conversation {conversation_id}: {e}')
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": f"Error getting skills: {str(e)}"},
+            content={'error': f'Error getting skills: {str(e)}'},
         )
 
 
-@router.get("/{conversation_id}/hooks")
+@router.get('/{conversation_id}/hooks')
 async def get_conversation_hooks(
     conversation_id: UUID,
     app_conversation_service: AppConversationService = (
@@ -1330,7 +1330,7 @@ async def get_conversation_hooks(
         if isinstance(ctx, JSONResponse):
             return ctx
         if ctx is None:
-            return JSONResponse(status_code=status.HTTP_200_OK, content={"hooks": []})
+            return JSONResponse(status_code=status.HTTP_200_OK, content={'hooks': []})
 
         from openhands.app_server.app_conversation.hook_loader import (
             fetch_hooks_from_agent_server,
@@ -1345,9 +1345,9 @@ async def get_conversation_hooks(
         # Load hooks from agent-server (using the error-raising variant so
         # HTTP/connection failures are surfaced to the user, not hidden).
         logger.debug(
-            f"Loading hooks for conversation {conversation_id}, "
-            f"agent_server_url={ctx.agent_server_url}, "
-            f"project_dir={project_dir}"
+            f'Loading hooks for conversation {conversation_id}, '
+            f'agent_server_url={ctx.agent_server_url}, '
+            f'project_dir={project_dir}'
         )
 
         try:
@@ -1359,23 +1359,23 @@ async def get_conversation_hooks(
             )
         except httpx.HTTPStatusError as e:
             logger.warning(
-                f"Agent-server returned {e.response.status_code} when loading hooks "
-                f"for conversation {conversation_id}: {e.response.text}"
+                f'Agent-server returned {e.response.status_code} when loading hooks '
+                f'for conversation {conversation_id}: {e.response.text}'
             )
             return JSONResponse(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 content={
-                    "error": f"Agent-server returned status {e.response.status_code} when loading hooks"
+                    'error': f'Agent-server returned status {e.response.status_code} when loading hooks'
                 },
             )
         except httpx.RequestError as e:
             logger.warning(
-                f"Failed to reach agent-server when loading hooks "
-                f"for conversation {conversation_id}: {e}"
+                f'Failed to reach agent-server when loading hooks '
+                f'for conversation {conversation_id}: {e}'
             )
             return JSONResponse(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                content={"error": "Failed to reach agent-server when loading hooks"},
+                content={'error': 'Failed to reach agent-server when loading hooks'},
             )
 
         # Transform hook_config to response format
@@ -1384,12 +1384,12 @@ async def get_conversation_hooks(
         if hook_config:
             # Define the event types to check
             event_types = [
-                "pre_tool_use",
-                "post_tool_use",
-                "user_prompt_submit",
-                "session_start",
-                "session_end",
-                "stop",
+                'pre_tool_use',
+                'post_tool_use',
+                'user_prompt_submit',
+                'session_start',
+                'session_end',
+                'stop',
             ]
 
             for field_name in event_types:
@@ -1400,7 +1400,7 @@ async def get_conversation_hooks(
                         hook_defs = [
                             HookDefinitionResponse(
                                 type=hook.type.value
-                                if hasattr(hook.type, "value")
+                                if hasattr(hook.type, 'value')
                                 else str(hook.type),
                                 command=hook.command,
                                 timeout=hook.timeout,
@@ -1422,7 +1422,7 @@ async def get_conversation_hooks(
                     )
 
         logger.debug(
-            f"Loaded {len(hooks_response)} hook event types for conversation {conversation_id}"
+            f'Loaded {len(hooks_response)} hook event types for conversation {conversation_id}'
         )
 
         return JSONResponse(
@@ -1431,14 +1431,14 @@ async def get_conversation_hooks(
         )
 
     except Exception as e:
-        logger.error(f"Error getting hooks for conversation {conversation_id}: {e}")
+        logger.error(f'Error getting hooks for conversation {conversation_id}: {e}')
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"error": f"Error getting hooks: {str(e)}"},
+            content={'error': f'Error getting hooks: {str(e)}'},
         )
 
 
-@router.get("/{conversation_id}/download")
+@router.get('/{conversation_id}/download')
 async def export_conversation(
     conversation_id: UUID,
     app_conversation_service: AppConversationService = (
@@ -1488,16 +1488,16 @@ async def export_conversation(
         # Return as a downloadable zip file
         return Response(
             content=zip_content,
-            media_type="application/zip",
+            media_type='application/zip',
             headers={
-                "Content-Disposition": f'attachment; filename="conversation_{conversation_id}.zip"'
+                'Content-Disposition': f'attachment; filename="conversation_{conversation_id}.zip"'
             },
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to download trajectory: {str(e)}"
+            status_code=500, detail=f'Failed to download trajectory: {str(e)}'
         )
 
 
@@ -1525,12 +1525,12 @@ async def _stream_app_conversation_start(
     state = InjectorState()
     setattr(state, USER_CONTEXT_ATTR, user_context)
     async with get_app_conversation_service(state) as app_conversation_service:
-        yield "[\n"
+        yield '[\n'
         comma = False
         async for task in app_conversation_service.start_app_conversation(request):
             chunk = task.model_dump_json()
             if comma:
-                chunk = ",\n" + chunk
+                chunk = ',\n' + chunk
             comma = True
             yield chunk
-        yield "]"
+        yield ']'

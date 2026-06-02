@@ -1714,7 +1714,11 @@ class TestDockerSandboxServiceHostNetwork:
         return_value=False,
     )
     async def test_proxy_url_pattern_fallback_to_sandbox_proxy_pattern(
-        self, mock_is_docker, mock_sandbox_spec_service, mock_docker_client, mock_httpx_client
+        self,
+        mock_is_docker,
+        mock_sandbox_spec_service,
+        mock_docker_client,
+        mock_httpx_client,
     ):
         """Test that when VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN,
         WORKER2_PROXY_URL_PATTERN are not set, it falls back to SANDBOX_PROXY_URL_PATTERN.
@@ -1730,7 +1734,9 @@ class TestDockerSandboxServiceHostNetwork:
             container_url_pattern='http://localhost:{port}',
             mounts=[],
             exposed_ports=[
-                ExposedPort(name=AGENT_SERVER, description='Agent server', container_port=8000),
+                ExposedPort(
+                    name=AGENT_SERVER, description='Agent server', container_port=8000
+                ),
                 ExposedPort(name=VSCODE, description='VSCode', container_port=8001),
                 ExposedPort(name=WORKER_1, description='Worker 1', container_port=8011),
                 ExposedPort(name=WORKER_2, description='Worker 2', container_port=8012),
@@ -1778,7 +1784,10 @@ class TestDockerSandboxServiceHostNetwork:
         assert agent_url.url == 'https://ai.example.com/ws/12345'
 
         vscode_url = next(url for url in result.exposed_urls if url.name == VSCODE)
-        assert vscode_url.url == 'https://ai.example.com/ws/12346/?tkn=session_key_123&folder=/workspace'
+        assert (
+            vscode_url.url
+            == 'https://ai.example.com/ws/12346/?tkn=session_key_123&folder=/workspace'
+        )
 
         worker1_url = next(url for url in result.exposed_urls if url.name == WORKER_1)
         assert worker1_url.url == 'https://ai.example.com/ws/12347'
@@ -1791,7 +1800,11 @@ class TestDockerSandboxServiceHostNetwork:
         return_value=False,
     )
     async def test_proxy_url_pattern_specific_overrides_fallback(
-        self, mock_is_docker, mock_sandbox_spec_service, mock_docker_client, mock_httpx_client
+        self,
+        mock_is_docker,
+        mock_sandbox_spec_service,
+        mock_docker_client,
+        mock_httpx_client,
     ):
         """Test that VSCODE_PROXY_URL_PATTERN, WORKER1_PROXY_URL_PATTERN,
         WORKER2_PROXY_URL_PATTERN override SANDBOX_PROXY_URL_PATTERN when set.
@@ -1806,7 +1819,9 @@ class TestDockerSandboxServiceHostNetwork:
             container_url_pattern='http://localhost:{port}',
             mounts=[],
             exposed_ports=[
-                ExposedPort(name=AGENT_SERVER, description='Agent server', container_port=8000),
+                ExposedPort(
+                    name=AGENT_SERVER, description='Agent server', container_port=8000
+                ),
                 ExposedPort(name=VSCODE, description='VSCode', container_port=8001),
                 ExposedPort(name=WORKER_1, description='Worker 1', container_port=8011),
                 ExposedPort(name=WORKER_2, description='Worker 2', container_port=8012),
@@ -1859,7 +1874,10 @@ class TestDockerSandboxServiceHostNetwork:
 
         vscode_url = next(url for url in result.exposed_urls if url.name == VSCODE)
         # VSCode uses vscode_proxy_url_pattern
-        assert vscode_url.url == 'https://ai.example.com/vscode/12346/?tkn=session_key_123&folder=/workspace'
+        assert (
+            vscode_url.url
+            == 'https://ai.example.com/vscode/12346/?tkn=session_key_123&folder=/workspace'
+        )
 
         worker1_url = next(url for url in result.exposed_urls if url.name == WORKER_1)
         # WORKER_1 uses worker1_proxy_url_pattern

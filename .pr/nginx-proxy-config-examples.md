@@ -6,22 +6,22 @@
 # Pattern: /ws/:34449 → localhost:34449
 location ~ ^/ws/:(?<sandbox_port>\d+)/(.*)$ {
     proxy_pass http://localhost:$sandbox_port/$2;
-    
+
     # WebSocket support
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
-    
+
     # Standard headers
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    
+
     # Timeout for long-running WebSocket connections
     proxy_read_timeout 86400;
     proxy_send_timeout 86400;
-    
+
     # Disable buffering for WebSocket
     proxy_buffering off;
 }
@@ -38,22 +38,22 @@ SANDBOX_PROXY_URL_PATTERN=https://domain.com/ws/:{port}
 # Pattern: /ws/34449 → localhost:34449
 location ~ ^/ws/(?<sandbox_port>\d+)/(.*)$ {
     proxy_pass http://localhost:$sandbox_port/$2;
-    
+
     # WebSocket support
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
-    
+
     # Standard headers
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    
+
     # Timeout for long-running WebSocket connections
     proxy_read_timeout 86400;
     proxy_send_timeout 86400;
-    
+
     # Disable buffering for WebSocket
     proxy_buffering off;
 }
@@ -75,11 +75,11 @@ server {
     listen 80;
     listen 443 ssl http2;
     server_name ai.canthotouring.com;
-    
+
     # SSL certificate
     ssl_certificate /etc/ssl/certs/ai.canthotouring.com.crt;
     ssl_certificate_key /etc/ssl/private/ai.canthotouring.com.key;
-    
+
     # Main OpenHands application (port 3000)
     location / {
         proxy_pass http://localhost:3000;
@@ -89,28 +89,28 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-    
+
     # Sandbox WebSocket and HTTP routing (Pattern B)
     location ~ ^/ws/(?<sandbox_port>\d+)/(.*)$ {
         proxy_pass http://localhost:$sandbox_port/$2;
-        
+
         # WebSocket support
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        
+
         # Standard headers
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Timeout for WebSocket (24 hours)
         proxy_read_timeout 86400;
         proxy_send_timeout 86400;
         proxy_buffering off;
     }
-    
+
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
